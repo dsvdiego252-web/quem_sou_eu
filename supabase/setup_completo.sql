@@ -1,4 +1,4 @@
--- Arquivo gerado: 001..003 + seed + 004..013. Para um banco NOVO: cole inteiro no SQL Editor do Supabase e execute uma vez.
+-- Arquivo gerado: 001..003 + seed + 004..014. Para um banco NOVO: cole inteiro no SQL Editor do Supabase e execute uma vez.
 
 create extension if not exists pgcrypto;
 
@@ -2074,3 +2074,6 @@ $$;
 revoke execute on function public.register_push(text,text,text),public.unregister_push(text),public.push_targets_for_invite(uuid,text),public.mark_push_gone(text[]) from public, anon;
 grant execute on function public.register_push(text,text,text),public.unregister_push(text),public.push_targets_for_invite(uuid,text),public.mark_push_gone(text[]) to authenticated;
 
+-- 014: a versão antiga skip_turn(uuid) (sem informar a vez) podia pular duas vezes;
+-- o app usa skip_turn(uuid, timestamptz) desde a 007.
+revoke execute on function public.skip_turn(uuid) from public, anon, authenticated;
