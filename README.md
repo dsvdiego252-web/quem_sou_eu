@@ -50,6 +50,7 @@ Sem `.env` configurado, a aplicação entra automaticamente em modo demonstraç�
    - `supabase/migrations/012_list_themes.sql` (temas vindos do banco)
    - `supabase/migrations/013_push_notifications.sql` (notificações de convite)
    - `supabase/migrations/014_revoke_old_skip_turn.sql`
+   - `supabase/migrations/015_skip_own_turn.sql` (quem está na vez pode pular a própria vez)
    - `supabase/seed.sql`
 3. Em **Authentication > Providers > Email**, mantenha Email habilitado.
 4. Em **Authentication > URL Configuration**, coloque a URL da Vercel em *Site URL* e em *Redirect URLs* (para o link de confirmação de e-mail voltar ao jogo).
@@ -151,6 +152,7 @@ Depois de publicado em HTTPS, abra no Chrome/Edge/Safari compatível e escolha *
 /supabase/migrations/012_list_themes.sql
 /supabase/migrations/013_push_notifications.sql
 /supabase/migrations/014_revoke_old_skip_turn.sql
+/supabase/migrations/015_skip_own_turn.sql
 /api/invite-push.js
 /src/js/push.js
 /supabase/seed.sql
