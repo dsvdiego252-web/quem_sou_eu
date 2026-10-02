@@ -2,7 +2,7 @@ export const defaultAvatar={emoji:'🙂'}
 export function avatarEmoji(a={}){return a?.emoji||'🙂'}
 
 // Emojis de pessoas aceitam tom de pele: o modificador entra logo após o primeiro caractere.
-const TONES=[['','🟡'],['🏻','🏻'],['🏼','🏼'],['🏽','🏽'],['🏾','🏾'],['🏿','🏿']]
+const TONES=[['','#ffcc4d'],['🏻','#f7dece'],['🏼','#f3d2a2'],['🏽','#d5ab88'],['🏾','#af7e57'],['🏿','#7c533e']]
 const CATEGORIES=[
  {id:'pessoas',label:'Pessoas',tone:true,items:['🧑','👨','👩','🧒','👦','👧','🧓','👴','👵','👱','👱‍♂️','👱‍♀️','🧔','🧔‍♀️','👨‍🦰','👩‍🦰','👨‍🦱','👩‍🦱','👨‍🦳','👩‍🦳','👨‍🦲','👩‍🦲','🧑‍🦰','🧑‍🦱','👲','👳','👳‍♀️','🧕','🤵','👰','🤰','🙋','🙋‍♂️','🙆‍♀️','💁‍♀️','💁‍♂️','🤷‍♀️','🤷‍♂️']},
  {id:'profissoes',label:'Profissões',tone:true,items:['👮','👮‍♀️','👷','👷‍♀️','💂','🕵️','🕵️‍♀️','🧑‍⚕️','👨‍⚕️','👩‍⚕️','🧑‍🍳','👨‍🍳','👩‍🍳','🧑‍🎤','👨‍🎤','👩‍🎤','🧑‍🎨','👩‍🎨','🧑‍🚀','👨‍🚀','👩‍🚀','🧑‍🚒','👨‍🚒','🧑‍💻','👨‍💻','👩‍💻','🧑‍🏫','👩‍🏫','🧑‍🔬','👩‍🔬','🧑‍🌾','👩‍🌾','🧑‍🔧','👩‍🔧','🧑‍✈️','👩‍✈️','🧑‍⚖️','👩‍⚖️','🧑‍🎓','👩‍🎓']},
@@ -15,7 +15,7 @@ const MOD=/[\u{1F3FB}-\u{1F3FF}]/gu
 export function withTone(e,tone){const base=e.replace(MOD,'');if(!tone)return base;const [first,...rest]=[...base];if(rest[0]==='️')rest.shift();return first+tone+rest.join('')}
 function toneOf(e){return (e.match(MOD)||[''])[0]}
 
-export function avatarEditorHTML(a={}){const cur=avatarEmoji(a);return `<div class="card"><h2>Crie seu avatar</h2><div class="avatar" id="avatarPreview">${cur}</div><div class="row avatar-tabs" style="justify-content:center;margin-top:16px">${CATEGORIES.map((c,i)=>`<button class="btn ${i?'alt':''} small avatarTab" data-c="${c.id}">${c.label}</button>`).join('')}</div><div class="row tone-row" id="toneRow" style="justify-content:center;margin-top:10px">${TONES.map(([t,icon])=>`<button class="btn alt small toneBtn ${t===toneOf(cur)?'picked':''}" data-t="${t}" title="Tom de pele">${icon}</button>`).join('')}</div><div class="avatar-grid" id="avatarGrid"></div></div>`}
+export function avatarEditorHTML(a={}){const cur=avatarEmoji(a);return `<div class="card"><h2>Crie seu avatar</h2><div class="avatar" id="avatarPreview">${cur}</div><div class="row avatar-tabs" style="justify-content:center;margin-top:16px">${CATEGORIES.map((c,i)=>`<button class="btn ${i?'alt':''} small avatarTab" data-c="${c.id}">${c.label}</button>`).join('')}</div><div class="row tone-row" id="toneRow" style="justify-content:center;margin-top:10px">${TONES.map(([t,color])=>`<button class="toneBtn ${t===toneOf(cur)?'picked':''}" data-t="${t}" title="Tom de pele" aria-label="Tom de pele" style="background:${color}"></button>`).join('')}</div><div class="avatar-grid" id="avatarGrid"></div></div>`}
 
 // Liga o editor; onPick recebe o emoji final escolhido.
 export function bindAvatarEditor(initial,onPick){let chosen=initial,tone=toneOf(initial),cat=CATEGORIES[0];const grid=document.getElementById('avatarGrid'),preview=document.getElementById('avatarPreview'),toneRow=document.getElementById('toneRow');
