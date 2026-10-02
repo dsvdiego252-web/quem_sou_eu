@@ -36,9 +36,11 @@ Sem `.env` configurado, a aplicação entra automaticamente em modo demonstraç�
 
 1. Crie um projeto em https://supabase.com.
 2. Em **SQL Editor**, execute `supabase/migrations/001_schema.sql`.
-3. Depois execute `supabase/seed.sql`.
-4. Em **Authentication > Providers > Email**, mantenha Email habilitado.
-5. Copie a URL do projeto e a chave pública/publishable para `.env`:
+3. Execute `supabase/migrations/002_security_and_fixes.sql` (obrigatório: corrige criação de sala, permissões e regras do jogo).
+4. Depois execute `supabase/seed.sql`.
+5. Em **Authentication > Providers > Email**, mantenha Email habilitado.
+6. Em **Authentication > URL Configuration**, coloque a URL da Vercel em *Site URL* e em *Redirect URLs* (para o link de confirmação de e-mail voltar ao jogo).
+7. Copie a URL do projeto e a chave pública/publishable para `.env`:
 
 ```env
 VITE_SUPABASE_URL=https://xxxxx.supabase.co
@@ -87,11 +89,10 @@ A pasta final é `dist/`.
 ## 7. Publicar gratuitamente
 
 ### Vercel
-- Importe o repositório.
-- Build command: `npm run build`
-- Output: `dist`
-- Cadastre `VITE_SUPABASE_URL` e `VITE_SUPABASE_PUBLISHABLE_KEY` nas Environment Variables.
-- `vercel.json` já contém fallback SPA.
+- Importe o repositório (Framework: Vite — `vercel.json` já define build `npm run build` e saída `dist`).
+- Cadastre `VITE_SUPABASE_URL` e `VITE_SUPABASE_PUBLISHABLE_KEY` em **Settings > Environment Variables** (Production e Preview). Como são variáveis `VITE_*`, elas entram no build: depois de alterá-las, faça um novo deploy.
+- Em **Settings > Deployment Protection**, deixe a *Vercel Authentication* apenas para Preview; senão seus amigos caem numa tela de login da Vercel ao abrir o link de produção.
+- `vercel.json` já contém fallback SPA, cache longo para `/assets` e `no-cache` para o service worker.
 
 ### Netlify
 - Build command: `npm run build`
@@ -121,6 +122,7 @@ Depois de publicado em HTTPS, abra no Chrome/Edge/Safari compatível e escolha *
 /public/sw.js
 /public/icons/icon.svg
 /supabase/migrations/001_schema.sql
+/supabase/migrations/002_security_and_fixes.sql
 /supabase/seed.sql
 /vercel.json
 /netlify.toml
