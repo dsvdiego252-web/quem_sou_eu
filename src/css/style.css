@@ -11,3 +11,10 @@
 .player.turn{box-shadow:0 0 0 3px #fde68a,0 20px 50px #0004}
 .turn-tag{position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:#fde68a;color:#1f1235;font-weight:900;font-size:.8rem;padding:4px 10px;border-radius:999px}
 .pill.urgent{background:#ef4444;color:#fff}
+.avatar-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(56px,1fr));gap:8px;margin-top:14px;max-height:320px;overflow:auto}
+.avatarPick{font-size:32px;padding:8px;border-radius:14px;background:#ffffff10;line-height:1}
+.avatarPick.picked{outline:3px solid #f9a8d4;background:#4c1d95}
+.avatar-tabs .btn.small,.tone-row .btn.small{padding:8px 12px}
+.avatar.mini{width:44px;height:44px;font-size:24px;margin:0;box-shadow:none}
+.online-box{max-width:850px;margin:0 auto 24px}
+.online-row{gap:10px}
