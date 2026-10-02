@@ -44,6 +44,7 @@ Sem `.env` configurado, a aplicação entra automaticamente em modo demonstraç�
    - `supabase/migrations/006_room_settings.sql` (host configura a sala no lobby)
    - `supabase/migrations/007_skip_turn_once.sql` (pular a vez só uma vez quando o tempo acaba)
    - `supabase/migrations/008_end_when_alone.sql` (encerra a partida quando sobra 1 jogador)
+   - `supabase/migrations/009_offline_detection.sql` (detecta e retira jogador offline)
    - `supabase/seed.sql`
 3. Em **Authentication > Providers > Email**, mantenha Email habilitado.
 4. Em **Authentication > URL Configuration**, coloque a URL da Vercel em *Site URL* e em *Redirect URLs* (para o link de confirmação de e-mail voltar ao jogo).
@@ -137,6 +138,7 @@ Depois de publicado em HTTPS, abra no Chrome/Edge/Safari compatível e escolha *
 /supabase/migrations/006_room_settings.sql
 /supabase/migrations/007_skip_turn_once.sql
 /supabase/migrations/008_end_when_alone.sql
+/supabase/migrations/009_offline_detection.sql
 /supabase/seed.sql
 /vercel.json
 /netlify.toml
