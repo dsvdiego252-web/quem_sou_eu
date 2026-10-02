@@ -48,6 +48,7 @@ Sem `.env` configurado, a aplicação entra automaticamente em modo demonstraç�
    - `supabase/migrations/010_hints_fuzzy_rematch_quick_achievements.sql` (dica, palpite tolerante, revanche, partida rápida, conquistas, ranking semanal, admin)
    - `supabase/migrations/011_more_characters.sql` (8 temas novos)
    - `supabase/migrations/012_list_themes.sql` (temas vindos do banco)
+   - `supabase/migrations/013_push_notifications.sql` (notificações de convite)
    - `supabase/seed.sql`
 3. Em **Authentication > Providers > Email**, mantenha Email habilitado.
 4. Em **Authentication > URL Configuration**, coloque a URL da Vercel em *Site URL* e em *Redirect URLs* (para o link de confirmação de e-mail voltar ao jogo).
@@ -147,10 +148,17 @@ Depois de publicado em HTTPS, abra no Chrome/Edge/Safari compatível e escolha *
 /supabase/migrations/010_hints_fuzzy_rematch_quick_achievements.sql
 /supabase/migrations/011_more_characters.sql
 /supabase/migrations/012_list_themes.sql
+/supabase/migrations/013_push_notifications.sql
+/api/invite-push.js
+/src/js/push.js
 /supabase/seed.sql
 /vercel.json
 /netlify.toml
 ```
+
+## Notificações push
+
+Convites chegam como notificação mesmo com o jogo fechado. Na Vercel são necessárias as variáveis `VITE_VAPID_PUBLIC_KEY` e `VAPID_PRIVATE_KEY` (gere com `npx web-push generate-vapid-keys`; a privada deve ser do tipo *Sensitive*). O envio é feito por `api/invite-push.js`. No iPhone, as notificações só funcionam com o jogo adicionado à Tela de Início (iOS 16.4+).
 
 ## Administração
 
