@@ -1,0 +1,4 @@
+import { supabase } from './supabase.js'
+let channel
+export function subscribeRoom(roomId,onChange){if(channel)supabase.removeChannel(channel);channel=supabase.channel(`room:${roomId}`).on('postgres_changes',{event:'*',schema:'public',table:'room_players',filter:`room_id=eq.${roomId}`},onChange).on('postgres_changes',{event:'*',schema:'public',table:'questions',filter:`room_id=eq.${roomId}`},onChange).on('postgres_changes',{event:'*',schema:'public',table:'answers',filter:`room_id=eq.${roomId}`},onChange).on('postgres_changes',{event:'*',schema:'public',table:'chat_messages',filter:`room_id=eq.${roomId}`},onChange).on('postgres_changes',{event:'*',schema:'public',table:'secret_characters',filter:`room_id=eq.${roomId}`},onChange).on('postgres_changes',{event:'*',schema:'public',table:'rooms',filter:`id=eq.${roomId}`},onChange).subscribe();return channel}
+export function unsubscribe(){if(channel){supabase.removeChannel(channel);channel=null}}

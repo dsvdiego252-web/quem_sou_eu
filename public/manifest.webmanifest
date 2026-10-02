@@ -1,0 +1,12 @@
+{
+  "name": "Quem Sou Eu?",
+  "short_name": "Quem Sou Eu",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#12091f",
+  "theme_color": "#7c3aed",
+  "description": "Jogo multiplayer online de adivinhação.",
+  "icons": [
+    {"src":"/icons/icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}
+  ]
+}
