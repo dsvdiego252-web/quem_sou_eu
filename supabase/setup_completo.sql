@@ -1,0 +1,1009 @@
+-- Arquivo gerado: 001_schema + 002_security_and_fixes + seed. Cole inteiro no SQL Editor do Supabase e execute uma vez.
+
+create extension if not exists pgcrypto;
+
+create table if not exists public.profiles(
+ id uuid primary key references auth.users(id) on delete cascade,
+ username text unique not null,
+ avatar jsonb not null default '{"emoji":"🙂"}'::jsonb,
+ level int not null default 1, xp int not null default 0, wins int not null default 0,
+ losses int not null default 0, matches int not null default 0, points int not null default 0,
+ best_streak int not null default 0, current_streak int not null default 0,
+ online boolean not null default false, last_seen timestamptz not null default now(), created_at timestamptz default now()
+);
+create table if not exists public.rooms(
+ id uuid primary key default gen_random_uuid(), code text unique not null,
+ host_id uuid not null references public.profiles(id), status text not null default 'lobby',
+ theme text not null default 'ALEATÓRIO', max_players int not null default 4 check(max_players between 2 and 4),
+ total_rounds int not null default 5, current_round int not null default 0,
+ game_mode text not null default 'FREE', turn_seconds int not null default 0, chat_enabled boolean not null default true,
+ created_at timestamptz default now()
+);
+create table if not exists public.room_players(
+ room_id uuid references public.rooms(id) on delete cascade, user_id uuid references public.profiles(id) on delete cascade,
+ score int not null default 0, status text not null default 'connected', joined_at timestamptz default now(),
+ wrong_guess_available_at timestamptz, primary key(room_id,user_id)
+);
+create table if not exists public.characters(
+ id bigint generated always as identity primary key, theme text not null, name text not null,
+ aliases text[] default '{}', active boolean not null default true, unique(theme,name)
+);
+create table if not exists public.secret_characters(
+ room_id uuid references public.rooms(id) on delete cascade, round_no int not null,
+ player_id uuid references public.profiles(id) on delete cascade, character_id bigint not null references public.characters(id),
+ revealed boolean not null default false, placement int, solved_at timestamptz, wrong_attempts int not null default 0,
+ primary key(room_id,round_no,player_id), unique(room_id,round_no,character_id)
+);
+create table if not exists public.questions(
+ id uuid primary key default gen_random_uuid(), room_id uuid references public.rooms(id) on delete cascade,
+ round_no int not null, user_id uuid references public.profiles(id), text text not null check(length(text)<=240), created_at timestamptz default now()
+);
+create table if not exists public.answers(
+ question_id uuid references public.questions(id) on delete cascade, user_id uuid references public.profiles(id) on delete cascade,
+ answer text not null check(answer in('YES','NO','MAYBE','DONT_KNOW')), note text check(length(note)<=120), created_at timestamptz default now(),
+ primary key(question_id,user_id)
+);
+create table if not exists public.chat_messages(
+ id uuid primary key default gen_random_uuid(), room_id uuid references public.rooms(id) on delete cascade,
+ user_id uuid references public.profiles(id), text text not null check(length(text)<=300), created_at timestamptz default now()
+);
+create table if not exists public.friendships(
+ requester uuid references public.profiles(id) on delete cascade, addressee uuid references public.profiles(id) on delete cascade,
+ status text not null default 'pending', created_at timestamptz default now(), primary key(requester,addressee)
+);
+create table if not exists public.theme_votes(
+ room_id uuid references public.rooms(id) on delete cascade, user_id uuid references public.profiles(id) on delete cascade,
+ theme text not null, primary key(room_id,user_id)
+);
+
+create or replace function public.handle_new_user() returns trigger language plpgsql security definer set search_path='' as $$
+begin
+ insert into public.profiles(id,username) values(new.id,coalesce(nullif(new.raw_user_meta_data->>'username',''),split_part(new.email,'@',1)||substr(new.id::text,1,4))) on conflict(id) do nothing;
+ return new;
+end$$;
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created after insert on auth.users for each row execute function public.handle_new_user();
+
+create or replace function public.is_room_member(p_room uuid,p_user uuid default auth.uid()) returns boolean language sql stable security definer set search_path='' as $$
+ select exists(select 1 from public.room_players rp where rp.room_id=p_room and rp.user_id=p_user);
+$$;
+
+create or replace function public.make_code() returns text language plpgsql volatile security definer set search_path='' as $$
+declare c text;begin loop c:=upper(substr(encode(gen_random_bytes(6),'hex'),1,5)); exit when not exists(select 1 from public.rooms where code=c); end loop; return c;end$$;
+
+create or replace function public.create_room(p_theme text,p_rounds int,p_game_mode text,p_turn_seconds int)
+returns uuid language plpgsql security definer set search_path='' as $$
+declare rid uuid;begin
+ insert into public.rooms(code,host_id,theme,total_rounds,game_mode,turn_seconds) values(public.make_code(),auth.uid(),p_theme,p_rounds,p_game_mode,p_turn_seconds) returning id into rid;
+ insert into public.room_players(room_id,user_id) values(rid,auth.uid()); return rid;end$$;
+
+create or replace function public.join_room(p_code text) returns uuid language plpgsql security definer set search_path='' as $$
+declare r public.rooms; n int;begin
+ select * into r from public.rooms where code=upper(trim(p_code)) and status='lobby'; if r.id is null then raise exception 'Sala não encontrada ou já iniciada';end if;
+ select count(*) into n from public.room_players where room_id=r.id; if n>=r.max_players then raise exception 'Sala lotada';end if;
+ insert into public.room_players(room_id,user_id) values(r.id,auth.uid()) on conflict do update set status='connected'; return r.id;end$$;
+
+create or replace function public.assign_round(p_room uuid,p_round int) returns void language plpgsql security definer set search_path='' as $$
+declare r public.rooms; p record; ch bigint; used bigint[]:='{}';begin
+ select * into r from public.rooms where id=p_room;
+ for p in select user_id from public.room_players where room_id=p_room and status<>'left' order by joined_at loop
+   select c.id into ch from public.characters c where c.active and c.id<>all(used) and (r.theme in('ALEATÓRIO','TUDO MISTURADO') or c.theme=r.theme) order by random() limit 1;
+   if ch is null then select c.id into ch from public.characters c where c.active and c.id<>all(used) order by random() limit 1; end if;
+   if ch is null then raise exception 'Banco de personagens insuficiente';end if;
+   insert into public.secret_characters(room_id,round_no,player_id,character_id) values(p_room,p_round,p.user_id,ch);
+   used:=array_append(used,ch);
+ end loop;
+end$$;
+
+create or replace function public.start_match(p_room_id uuid) returns boolean language plpgsql security definer set search_path='' as $$
+declare r public.rooms; n int;begin
+ select * into r from public.rooms where id=p_room_id for update; if r.host_id<>auth.uid() then raise exception 'Somente o host pode iniciar';end if;
+ select count(*) into n from public.room_players where room_id=p_room_id and status<>'left'; if n<2 then raise exception 'São necessários pelo menos 2 jogadores';end if;
+ update public.rooms set status='playing',current_round=1 where id=p_room_id; perform public.assign_round(p_room_id,1); return true;end$$;
+
+create or replace function public.submit_guess(p_room_id uuid,p_round_no int,p_character_id bigint)
+returns jsonb language plpgsql security definer set search_path='' as $$
+declare s public.secret_characters; rp public.room_players; total int; place int; qcount int; base int:=0; bonus int:=0; cname text; remain int;begin
+ if not public.is_room_member(p_room_id,auth.uid()) then raise exception 'Sem acesso';end if;
+ select * into rp from public.room_players where room_id=p_room_id and user_id=auth.uid() for update;
+ if rp.wrong_guess_available_at is not null and rp.wrong_guess_available_at>now() then raise exception 'Aguarde alguns segundos para tentar novamente';end if;
+ select * into s from public.secret_characters where room_id=p_room_id and round_no=p_round_no and player_id=auth.uid() for update;
+ if s.revealed then select name into cname from public.characters where id=s.character_id; return jsonb_build_object('correct',true,'character_name',cname,'already',true);end if;
+ if s.character_id<>p_character_id then update public.secret_characters set wrong_attempts=wrong_attempts+1 where room_id=p_room_id and round_no=p_round_no and player_id=auth.uid(); update public.room_players set wrong_guess_available_at=now()+interval '10 seconds' where room_id=p_room_id and user_id=auth.uid(); return jsonb_build_object('correct',false);end if;
+ select count(*) into total from public.room_players where room_id=p_room_id and status<>'left';
+ select count(*)+1 into place from public.secret_characters where room_id=p_room_id and round_no=p_round_no and revealed;
+ select count(*) into qcount from public.questions where room_id=p_room_id and round_no=p_round_no and user_id=auth.uid();
+ base:=case when total=4 then case place when 1 then 100 when 2 then 70 when 3 then 40 else 0 end when total=3 then case place when 1 then 100 when 2 then 50 else 0 end else case place when 1 then 100 else 0 end end;
+ bonus:=case when qcount<=3 then 30 when qcount<=5 then 15 else 0 end;
+ update public.secret_characters set revealed=true,placement=place,solved_at=now() where room_id=p_room_id and round_no=p_round_no and player_id=auth.uid();
+ update public.room_players set score=score+base+bonus,wrong_guess_available_at=null where room_id=p_room_id and user_id=auth.uid();
+ select name into cname from public.characters where id=s.character_id;
+ select count(*) into remain from public.secret_characters where room_id=p_room_id and round_no=p_round_no and not revealed;
+ if remain=1 then
+   update public.secret_characters set revealed=true,placement=total,solved_at=now() where room_id=p_room_id and round_no=p_round_no and not revealed;
+   update public.rooms set status='round_result' where id=p_room_id;
+ end if;
+ return jsonb_build_object('correct',true,'character_name',cname,'placement',place,'points',base+bonus);end$$;
+
+create or replace function public.next_round(p_room_id uuid) returns boolean language plpgsql security definer set search_path='' as $$
+declare r public.rooms;begin select * into r from public.rooms where id=p_room_id for update; if r.host_id<>auth.uid() then raise exception 'Somente host';end if;
+ if r.current_round>=r.total_rounds then update public.rooms set status='finished' where id=p_room_id; update public.profiles p set matches=matches+1,points=points+coalesce(x.score,0) from public.room_players x where x.room_id=p_room_id and x.user_id=p.id; return true;end if;
+ update public.rooms set current_round=current_round+1,status='playing' where id=p_room_id; perform public.assign_round(p_room_id,r.current_round+1); return true;end$$;
+
+create or replace function public.leave_room(p_room_id uuid) returns boolean language plpgsql security definer set search_path='' as $$ begin update public.room_players set status='left' where room_id=p_room_id and user_id=auth.uid();return true;end$$;
+
+alter table public.profiles enable row level security;alter table public.rooms enable row level security;alter table public.room_players enable row level security;alter table public.characters enable row level security;alter table public.secret_characters enable row level security;alter table public.questions enable row level security;alter table public.answers enable row level security;alter table public.chat_messages enable row level security;alter table public.friendships enable row level security;alter table public.theme_votes enable row level security;
+
+create policy profiles_read on public.profiles for select to authenticated using(true);create policy profile_self_update on public.profiles for update to authenticated using(id=auth.uid()) with check(id=auth.uid());
+create policy rooms_member_read on public.rooms for select to authenticated using(public.is_room_member(id));
+create policy rp_member_read on public.room_players for select to authenticated using(public.is_room_member(room_id));
+create policy chars_read on public.characters for select to authenticated using(active);
+create policy secrets_opponents_only on public.secret_characters for select to authenticated using(public.is_room_member(room_id) and (player_id<>auth.uid() or revealed));
+create policy q_read on public.questions for select to authenticated using(public.is_room_member(room_id));create policy q_insert on public.questions for insert to authenticated with check(user_id=auth.uid() and public.is_room_member(room_id));
+create policy a_read on public.answers for select to authenticated using(exists(select 1 from public.questions q where q.id=question_id and public.is_room_member(q.room_id)));create policy a_write on public.answers for insert to authenticated with check(user_id=auth.uid());create policy a_update on public.answers for update to authenticated using(user_id=auth.uid()) with check(user_id=auth.uid());
+create policy chat_read on public.chat_messages for select to authenticated using(public.is_room_member(room_id));create policy chat_write on public.chat_messages for insert to authenticated with check(user_id=auth.uid() and public.is_room_member(room_id));
+create policy friends_read on public.friendships for select to authenticated using(requester=auth.uid() or addressee=auth.uid());create policy friends_write on public.friendships for all to authenticated using(requester=auth.uid() or addressee=auth.uid()) with check(requester=auth.uid() or addressee=auth.uid());
+create policy votes_all on public.theme_votes for all to authenticated using(public.is_room_member(room_id)) with check(user_id=auth.uid() and public.is_room_member(room_id));
+
+grant select on public.profiles,public.rooms,public.room_players,public.characters,public.secret_characters,public.questions,public.answers,public.chat_messages,public.friendships,public.theme_votes to authenticated;
+grant insert on public.questions,public.answers,public.chat_messages,public.friendships,public.theme_votes to authenticated;grant update on public.profiles,public.answers,public.friendships,public.theme_votes to authenticated;
+revoke all on public.secret_characters from anon;revoke insert,update,delete on public.secret_characters from authenticated;
+grant execute on function public.create_room(text,int,text,int),public.join_room(text),public.start_match(uuid),public.submit_guess(uuid,int,bigint),public.next_round(uuid),public.leave_room(uuid) to authenticated;
+
+alter publication supabase_realtime add table public.rooms;alter publication supabase_realtime add table public.room_players;alter publication supabase_realtime add table public.secret_characters;alter publication supabase_realtime add table public.questions;alter publication supabase_realtime add table public.answers;alter publication supabase_realtime add table public.chat_messages;
+
+-- 002: correções de segurança, regras de jogo e desempenho.
+-- Idempotente: pode ser executado depois do 001 em um banco que já está em uso.
+
+-- ---------------------------------------------------------------------------
+-- 1. Funções SECURITY DEFINER: por padrão o Postgres concede EXECUTE a PUBLIC,
+--    o que permitia a qualquer visitante (anon) chamar assign_round/make_code
+--    diretamente e inserir identidades em salas de outras pessoas.
+-- ---------------------------------------------------------------------------
+revoke execute on function public.handle_new_user() from public, anon, authenticated;
+revoke execute on function public.make_code() from public, anon, authenticated;
+revoke execute on function public.assign_round(uuid,int) from public, anon, authenticated;
+revoke execute on function public.is_room_member(uuid,uuid) from public, anon;
+grant execute on function public.is_room_member(uuid,uuid) to authenticated;
+revoke execute on function public.create_room(text,int,text,int),public.join_room(text),public.start_match(uuid),
+  public.submit_guess(uuid,int,bigint),public.next_round(uuid),public.leave_room(uuid) from public, anon;
+
+-- make_code usava gen_random_bytes (pgcrypto) com search_path='' sem qualificar o
+-- schema; no Supabase o pgcrypto fica em "extensions", então criar sala falhava.
+-- Agora usa só funções nativas e um alfabeto sem caracteres ambíguos (0/O, 1/I).
+create or replace function public.make_code() returns text language plpgsql volatile security definer set search_path='' as $$
+declare alphabet constant text:='ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; c text;begin
+ loop
+   select string_agg(substr(alphabet,1+floor(random()*length(alphabet))::int,1),'') into c from generate_series(1,5);
+   exit when not exists(select 1 from public.rooms where code=c);
+ end loop;
+ return c;end$$;
+revoke execute on function public.make_code() from public, anon, authenticated;
+
+-- ---------------------------------------------------------------------------
+-- 2. Perfis: o usuário só pode alterar nome e avatar (antes podia editar
+--    points/wins/level e fraudar o ranking).
+-- ---------------------------------------------------------------------------
+revoke update on public.profiles from authenticated;
+grant update(username, avatar) on public.profiles to authenticated;
+do $$ begin
+  alter table public.profiles add constraint profiles_username_len check (char_length(username) between 3 and 24);
+exception when duplicate_object then null; when check_violation then null; end $$;
+
+-- Cadastro não falha mais quando o nome de usuário já existe.
+create or replace function public.handle_new_user_row(p_id uuid,p_email text,p_meta jsonb) returns void language plpgsql security definer set search_path='' as $$
+declare base text; candidate text;
+begin
+ base:=left(coalesce(nullif(trim(p_meta->>'username'),''),split_part(p_email,'@',1)),18);
+ if char_length(base)<3 then base:=base||'jogador'; end if;
+ candidate:=base;
+ if exists(select 1 from public.profiles where username=candidate) then candidate:=base||'_'||substr(replace(p_id::text,'-',''),1,5); end if;
+ insert into public.profiles(id,username) values(p_id,candidate) on conflict(id) do nothing;
+end$$;
+create or replace function public.handle_new_user() returns trigger language plpgsql security definer set search_path='' as $$
+begin perform public.handle_new_user_row(new.id,new.email,new.raw_user_meta_data); return new; end$$;
+revoke execute on function public.handle_new_user() from public, anon, authenticated;
+revoke execute on function public.handle_new_user_row(uuid,text,jsonb) from public, anon, authenticated;
+
+-- Contas criadas antes desta migration (ou por outro app no mesmo projeto Supabase)
+-- não passaram pelo trigger; o cliente chama isto ao logar para criar o perfil.
+create or replace function public.ensure_profile() returns void language plpgsql security definer set search_path='' as $$
+declare u auth.users;begin
+ if auth.uid() is null or exists(select 1 from public.profiles where id=auth.uid()) then return;end if;
+ select * into u from auth.users where id=auth.uid();
+ perform public.handle_new_user_row(u.id,u.email,u.raw_user_meta_data);
+end$$;
+
+-- ---------------------------------------------------------------------------
+-- 3. Regras de jogo validadas no servidor
+-- ---------------------------------------------------------------------------
+create or replace function public.create_room(p_theme text,p_rounds int,p_game_mode text,p_turn_seconds int)
+returns uuid language plpgsql security definer set search_path='' as $$
+declare rid uuid;begin
+ if auth.uid() is null then raise exception 'Faça login';end if;
+ if p_rounds not between 1 and 10 then raise exception 'Número de rodadas inválido';end if;
+ if p_game_mode not in('FREE','TURNS') then raise exception 'Modo inválido';end if;
+ if p_turn_seconds not between 0 and 300 then raise exception 'Tempo inválido';end if;
+ if p_theme not in('ALEATÓRIO','TUDO MISTURADO') and not exists(select 1 from public.characters where theme=p_theme and active) then raise exception 'Tema sem personagens';end if;
+ insert into public.rooms(code,host_id,theme,total_rounds,game_mode,turn_seconds) values(public.make_code(),auth.uid(),p_theme,p_rounds,p_game_mode,p_turn_seconds) returning id into rid;
+ insert into public.room_players(room_id,user_id) values(rid,auth.uid()); return rid;end$$;
+
+create or replace function public.join_room(p_code text) returns uuid language plpgsql security definer set search_path='' as $$
+declare r public.rooms; n int;begin
+ if auth.uid() is null then raise exception 'Faça login';end if;
+ select * into r from public.rooms where code=upper(trim(p_code)) for update;
+ if r.id is null then raise exception 'Sala não encontrada';end if;
+ -- quem já está na sala pode voltar mesmo com o jogo em andamento
+ if exists(select 1 from public.room_players where room_id=r.id and user_id=auth.uid() and status<>'left') then return r.id;end if;
+ if r.status<>'lobby' then raise exception 'Esta partida já começou';end if;
+ select count(*) into n from public.room_players where room_id=r.id and status<>'left'; if n>=r.max_players then raise exception 'Sala lotada';end if;
+ insert into public.room_players(room_id,user_id) values(r.id,auth.uid()) on conflict(room_id,user_id) do update set status='connected'; return r.id;end$$;
+
+create or replace function public.start_match(p_room_id uuid) returns boolean language plpgsql security definer set search_path='' as $$
+declare r public.rooms; n int;begin
+ select * into r from public.rooms where id=p_room_id for update;
+ if r.id is null or r.host_id<>auth.uid() then raise exception 'Somente o host pode iniciar';end if;
+ if r.status<>'lobby' then raise exception 'A partida já começou';end if;
+ select count(*) into n from public.room_players where room_id=p_room_id and status<>'left'; if n<2 then raise exception 'São necessários pelo menos 2 jogadores';end if;
+ update public.rooms set status='playing',current_round=1 where id=p_room_id; perform public.assign_round(p_room_id,1); return true;end$$;
+
+-- Fecha a rodada quando resta no máximo 1 jogador ativo sem acertar.
+create or replace function public.check_round_end(p_room_id uuid,p_round int) returns void language plpgsql security definer set search_path='' as $$
+declare total int; remain int;begin
+ select count(*) into total from public.room_players where room_id=p_room_id and status<>'left';
+ select count(*) into remain from public.secret_characters s join public.room_players rp on rp.room_id=s.room_id and rp.user_id=s.player_id
+  where s.room_id=p_room_id and s.round_no=p_round and not s.revealed and rp.status<>'left';
+ if remain<=1 then
+   update public.secret_characters set revealed=true,placement=coalesce(placement,total),solved_at=coalesce(solved_at,now()) where room_id=p_room_id and round_no=p_round and not revealed;
+   update public.rooms set status='round_result' where id=p_room_id and status='playing';
+ end if;
+end$$;
+revoke execute on function public.check_round_end(uuid,int) from public, anon, authenticated;
+
+-- Correções:
+--  * antes, chamar com uma rodada inexistente caía no ramo "acertou" e dava pontos infinitos;
+--  * agora só vale na rodada atual com a sala em jogo;
+--  * compara pelo NOME do personagem (o mesmo nome existe em mais de um tema, ex. Neymar).
+create or replace function public.submit_guess(p_room_id uuid,p_round_no int,p_character_id bigint)
+returns jsonb language plpgsql security definer set search_path='' as $$
+declare r public.rooms; s public.secret_characters; rp public.room_players; total int; place int; qcount int; base int:=0; bonus int:=0; cname text; gname text;begin
+ if not public.is_room_member(p_room_id,auth.uid()) then raise exception 'Sem acesso';end if;
+ select * into r from public.rooms where id=p_room_id for update;
+ if r.status<>'playing' or r.current_round<>p_round_no then raise exception 'A rodada não está em andamento';end if;
+ select * into rp from public.room_players where room_id=p_room_id and user_id=auth.uid() for update;
+ if rp.status='left' then raise exception 'Você saiu da sala';end if;
+ if rp.wrong_guess_available_at is not null and rp.wrong_guess_available_at>now() then raise exception 'Aguarde alguns segundos para tentar novamente';end if;
+ select * into s from public.secret_characters where room_id=p_room_id and round_no=p_round_no and player_id=auth.uid() for update;
+ if not found then raise exception 'Você não tem identidade nesta rodada';end if;
+ select name into cname from public.characters where id=s.character_id;
+ if s.revealed then return jsonb_build_object('correct',true,'character_name',cname,'already',true);end if;
+ select name into gname from public.characters where id=p_character_id;
+ if gname is null or lower(gname)<>lower(cname) then
+   update public.secret_characters set wrong_attempts=wrong_attempts+1 where room_id=p_room_id and round_no=p_round_no and player_id=auth.uid();
+   update public.room_players set wrong_guess_available_at=now()+interval '10 seconds' where room_id=p_room_id and user_id=auth.uid();
+   return jsonb_build_object('correct',false);
+ end if;
+ select count(*) into total from public.room_players where room_id=p_room_id and status<>'left';
+ select count(*)+1 into place from public.secret_characters where room_id=p_room_id and round_no=p_round_no and revealed;
+ select count(*) into qcount from public.questions where room_id=p_room_id and round_no=p_round_no and user_id=auth.uid();
+ base:=case when total>=4 then case place when 1 then 100 when 2 then 70 when 3 then 40 else 0 end when total=3 then case place when 1 then 100 when 2 then 50 else 0 end else case place when 1 then 100 else 0 end end;
+ bonus:=case when qcount<=3 then 30 when qcount<=5 then 15 else 0 end;
+ update public.secret_characters set revealed=true,placement=place,solved_at=now() where room_id=p_room_id and round_no=p_round_no and player_id=auth.uid();
+ update public.room_players set score=score+base+bonus,wrong_guess_available_at=null where room_id=p_room_id and user_id=auth.uid();
+ perform public.check_round_end(p_room_id,p_round_no);
+ return jsonb_build_object('correct',true,'character_name',cname,'placement',place,'points',base+bonus);end$$;
+
+-- Só avança a partir da tela de resultado; ao final atualiza vitórias/derrotas/XP.
+create or replace function public.next_round(p_room_id uuid) returns boolean language plpgsql security definer set search_path='' as $$
+declare r public.rooms; top int;begin
+ select * into r from public.rooms where id=p_room_id for update;
+ if r.id is null or r.host_id<>auth.uid() then raise exception 'Somente o host';end if;
+ if r.status<>'round_result' then raise exception 'A rodada ainda não terminou';end if;
+ if r.current_round>=r.total_rounds then
+   update public.rooms set status='finished' where id=p_room_id;
+   select max(score) into top from public.room_players where room_id=p_room_id and status<>'left';
+   update public.profiles p set
+     matches=matches+1,
+     points=points+coalesce(x.score,0),
+     xp=xp+coalesce(x.score,0),
+     level=1+(xp+coalesce(x.score,0))/500,
+     wins=wins+case when x.score=top then 1 else 0 end,
+     losses=losses+case when x.score=top then 0 else 1 end,
+     current_streak=case when x.score=top then current_streak+1 else 0 end,
+     best_streak=greatest(best_streak,case when x.score=top then current_streak+1 else 0 end)
+   from public.room_players x where x.room_id=p_room_id and x.user_id=p.id and x.status<>'left';
+   return true;
+ end if;
+ update public.rooms set current_round=current_round+1,status='playing' where id=p_room_id;
+ perform public.assign_round(p_room_id,r.current_round+1); return true;end$$;
+
+-- Sair no meio da rodada não trava mais a partida; host sai do lobby => passa o host.
+create or replace function public.leave_room(p_room_id uuid) returns boolean language plpgsql security definer set search_path='' as $$
+declare r public.rooms; nh uuid;begin
+ select * into r from public.rooms where id=p_room_id for update;
+ if r.id is null then return false;end if;
+ update public.room_players set status='left' where room_id=p_room_id and user_id=auth.uid();
+ if r.host_id=auth.uid() then
+   select user_id into nh from public.room_players where room_id=p_room_id and status<>'left' order by joined_at limit 1;
+   if nh is not null then update public.rooms set host_id=nh where id=p_room_id;
+   elsif r.status in('lobby','playing','round_result') then update public.rooms set status='finished' where id=p_room_id;end if;
+ end if;
+ if r.status='playing' then perform public.check_round_end(p_room_id,r.current_round);end if;
+ return true;end$$;
+
+revoke execute on function public.create_room(text,int,text,int),public.join_room(text),public.start_match(uuid),
+  public.submit_guess(uuid,int,bigint),public.next_round(uuid),public.leave_room(uuid) from public, anon;
+grant execute on function public.create_room(text,int,text,int),public.join_room(text),public.start_match(uuid),
+  public.submit_guess(uuid,int,bigint),public.next_round(uuid),public.leave_room(uuid) to authenticated;
+revoke execute on function public.ensure_profile() from public, anon;
+grant execute on function public.ensure_profile() to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- 4. Policies mais restritas
+-- ---------------------------------------------------------------------------
+-- Respostas: só membros da sala, e ninguém responde a própria pergunta.
+drop policy if exists a_write on public.answers;
+create policy a_write on public.answers for insert to authenticated with check(
+  user_id=(select auth.uid()) and exists(select 1 from public.questions q where q.id=question_id and q.user_id<>(select auth.uid()) and public.is_room_member(q.room_id)));
+drop policy if exists a_update on public.answers;
+create policy a_update on public.answers for update to authenticated using(user_id=(select auth.uid())) with check(
+  user_id=(select auth.uid()) and exists(select 1 from public.questions q where q.id=question_id and q.user_id<>(select auth.uid()) and public.is_room_member(q.room_id)));
+
+-- Perguntas: apenas na rodada atual de uma sala em jogo.
+drop policy if exists q_insert on public.questions;
+create policy q_insert on public.questions for insert to authenticated with check(
+  user_id=(select auth.uid()) and public.is_room_member(room_id)
+  and exists(select 1 from public.rooms r where r.id=room_id and r.status='playing' and r.current_round=round_no));
+
+-- Amizades: só o solicitante cria; ambos podem ver/aceitar/remover.
+drop policy if exists friends_write on public.friendships;
+drop policy if exists friends_insert on public.friendships;
+drop policy if exists friends_update on public.friendships;
+drop policy if exists friends_delete on public.friendships;
+create policy friends_insert on public.friendships for insert to authenticated with check(requester=(select auth.uid()) and status='pending');
+create policy friends_update on public.friendships for update to authenticated using(addressee=(select auth.uid())) with check(addressee=(select auth.uid()));
+create policy friends_delete on public.friendships for delete to authenticated using(requester=(select auth.uid()) or addressee=(select auth.uid()));
+grant delete on public.friendships to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- 5. Índices para as consultas e políticas usadas pelo app
+-- ---------------------------------------------------------------------------
+create index if not exists room_players_user_idx on public.room_players(user_id);
+create index if not exists rooms_host_idx on public.rooms(host_id);
+create index if not exists questions_room_round_idx on public.questions(room_id,round_no,created_at desc);
+create index if not exists questions_user_idx on public.questions(user_id);
+create index if not exists answers_user_idx on public.answers(user_id);
+create index if not exists chat_room_created_idx on public.chat_messages(room_id,created_at desc);
+create index if not exists chat_user_idx on public.chat_messages(user_id);
+create index if not exists secret_player_idx on public.secret_characters(player_id);
+create index if not exists secret_character_idx on public.secret_characters(character_id);
+create index if not exists characters_theme_idx on public.characters(theme) where active;
+create index if not exists friendships_addressee_idx on public.friendships(addressee);
+create index if not exists theme_votes_user_idx on public.theme_votes(user_id);
+create index if not exists profiles_points_idx on public.profiles(points desc);
+
+-- Dados iniciais. Pode rodar várias vezes: ON CONFLICT evita duplicidade.
+insert into public.characters(theme,name) values
+  ('ESPORTE','Lionel Messi'),
+  ('ESPORTE','Cristiano Ronaldo'),
+  ('ESPORTE','Neymar'),
+  ('ESPORTE','Michael Jordan'),
+  ('ESPORTE','LeBron James'),
+  ('ESPORTE','Ayrton Senna'),
+  ('ESPORTE','Lewis Hamilton'),
+  ('ESPORTE','Usain Bolt'),
+  ('ESPORTE','Pelé'),
+  ('ESPORTE','Ronaldo Fenômeno'),
+  ('ESPORTE','Ronaldinho Gaúcho'),
+  ('ESPORTE','Galvão Bueno'),
+  ('ESPORTE','Marta'),
+  ('ESPORTE','Vinícius Júnior'),
+  ('ESPORTE','Kylian Mbappé'),
+  ('ESPORTE','Novak Djokovic'),
+  ('ESPORTE','Rafael Nadal'),
+  ('ESPORTE','Roger Federer'),
+  ('ESPORTE','Serena Williams'),
+  ('ESPORTE','Simone Biles'),
+  ('ESPORTE','Max Verstappen'),
+  ('ESPORTE','Gabriel Medina'),
+  ('ESPORTE','Rebeca Andrade'),
+  ('ESPORTE','Gustavo Kuerten'),
+  ('ESPORTE','Oscar Schmidt'),
+  ('ESPORTE','Anderson Silva'),
+  ('ESPORTE','José Aldo'),
+  ('ESPORTE','Mike Tyson'),
+  ('ESPORTE','Muhammad Ali'),
+  ('ESPORTE','Tom Brady'),
+  ('ESPORTE','Stephen Curry'),
+  ('ESPORTE','Kobe Bryant'),
+  ('ESPORTE','Shaquille O’Neal'),
+  ('ESPORTE','Magic Johnson'),
+  ('ESPORTE','Larry Bird'),
+  ('ESPORTE','Giannis Antetokounmpo'),
+  ('ESPORTE','Luka Dončić'),
+  ('ESPORTE','Kevin Durant'),
+  ('ESPORTE','Tiger Woods'),
+  ('ESPORTE','Michael Phelps')
+on conflict(theme,name) do nothing;
+
+insert into public.characters(theme,name) values
+  ('FILMES','Harry Potter'),
+  ('FILMES','Homem-Aranha'),
+  ('FILMES','Batman'),
+  ('FILMES','Superman'),
+  ('FILMES','Homem de Ferro'),
+  ('FILMES','Jack Sparrow'),
+  ('FILMES','Rocky Balboa'),
+  ('FILMES','Darth Vader'),
+  ('FILMES','Hulk'),
+  ('FILMES','Thanos'),
+  ('FILMES','Capitão América'),
+  ('FILMES','Thor'),
+  ('FILMES','Viúva Negra'),
+  ('FILMES','Pantera Negra'),
+  ('FILMES','Wolverine'),
+  ('FILMES','Deadpool'),
+  ('FILMES','Indiana Jones'),
+  ('FILMES','Forrest Gump'),
+  ('FILMES','Neo'),
+  ('FILMES','John Wick'),
+  ('FILMES','Shrek'),
+  ('FILMES','Elsa'),
+  ('FILMES','Woody'),
+  ('FILMES','Buzz Lightyear'),
+  ('FILMES','Simba'),
+  ('FILMES','Aladdin'),
+  ('FILMES','Mulan'),
+  ('FILMES','Moana'),
+  ('FILMES','Marty McFly'),
+  ('FILMES','ET')
+on conflict(theme,name) do nothing;
+
+insert into public.characters(theme,name) values
+  ('GAMES','Mario'),
+  ('GAMES','Luigi'),
+  ('GAMES','Sonic'),
+  ('GAMES','Link'),
+  ('GAMES','Zelda'),
+  ('GAMES','Kratos'),
+  ('GAMES','Master Chief'),
+  ('GAMES','Lara Croft'),
+  ('GAMES','Pac-Man'),
+  ('GAMES','Pikachu'),
+  ('GAMES','Donkey Kong'),
+  ('GAMES','Kirby'),
+  ('GAMES','Crash Bandicoot'),
+  ('GAMES','Spyro'),
+  ('GAMES','Samus Aran'),
+  ('GAMES','Mega Man'),
+  ('GAMES','Ryu'),
+  ('GAMES','Ken Masters'),
+  ('GAMES','Sub-Zero'),
+  ('GAMES','Scorpion'),
+  ('GAMES','Chun-Li'),
+  ('GAMES','Cloud Strife'),
+  ('GAMES','Sephiroth'),
+  ('GAMES','Steve Minecraft'),
+  ('GAMES','Creeper'),
+  ('GAMES','Geralt de Rívia'),
+  ('GAMES','Ezio Auditore'),
+  ('GAMES','Nathan Drake'),
+  ('GAMES','Joel Miller'),
+  ('GAMES','Ellie Williams')
+on conflict(theme,name) do nothing;
+
+insert into public.characters(theme,name) values
+  ('ANIMAIS','Cachorro'),
+  ('ANIMAIS','Gato'),
+  ('ANIMAIS','Leão'),
+  ('ANIMAIS','Tigre'),
+  ('ANIMAIS','Elefante'),
+  ('ANIMAIS','Girafa'),
+  ('ANIMAIS','Zebra'),
+  ('ANIMAIS','Macaco'),
+  ('ANIMAIS','Gorila'),
+  ('ANIMAIS','Chimpanzé'),
+  ('ANIMAIS','Urso-pardo'),
+  ('ANIMAIS','Urso-polar'),
+  ('ANIMAIS','Panda'),
+  ('ANIMAIS','Lobo'),
+  ('ANIMAIS','Raposa'),
+  ('ANIMAIS','Hiena'),
+  ('ANIMAIS','Rinoceronte'),
+  ('ANIMAIS','Hipopótamo'),
+  ('ANIMAIS','Cavalo'),
+  ('ANIMAIS','Burro'),
+  ('ANIMAIS','Jumento'),
+  ('ANIMAIS','Vaca'),
+  ('ANIMAIS','Touro'),
+  ('ANIMAIS','Búfalo'),
+  ('ANIMAIS','Bode'),
+  ('ANIMAIS','Cabra'),
+  ('ANIMAIS','Ovelha'),
+  ('ANIMAIS','Porco'),
+  ('ANIMAIS','Coelho'),
+  ('ANIMAIS','Lebre'),
+  ('ANIMAIS','Rato'),
+  ('ANIMAIS','Hamster'),
+  ('ANIMAIS','Esquilo'),
+  ('ANIMAIS','Capivara'),
+  ('ANIMAIS','Tamanduá'),
+  ('ANIMAIS','Tatu'),
+  ('ANIMAIS','Preguiça'),
+  ('ANIMAIS','Canguru'),
+  ('ANIMAIS','Coala'),
+  ('ANIMAIS','Ornitorrinco'),
+  ('ANIMAIS','Golfinho'),
+  ('ANIMAIS','Baleia'),
+  ('ANIMAIS','Orca'),
+  ('ANIMAIS','Tubarão'),
+  ('ANIMAIS','Arraia'),
+  ('ANIMAIS','Polvo'),
+  ('ANIMAIS','Lula'),
+  ('ANIMAIS','Caranguejo'),
+  ('ANIMAIS','Lagosta'),
+  ('ANIMAIS','Camarão'),
+  ('ANIMAIS','Pinguim'),
+  ('ANIMAIS','Avestruz'),
+  ('ANIMAIS','Águia'),
+  ('ANIMAIS','Falcão'),
+  ('ANIMAIS','Coruja'),
+  ('ANIMAIS','Papagaio'),
+  ('ANIMAIS','Arara'),
+  ('ANIMAIS','Tucano'),
+  ('ANIMAIS','Pombo'),
+  ('ANIMAIS','Galinha'),
+  ('ANIMAIS','Galo'),
+  ('ANIMAIS','Pato'),
+  ('ANIMAIS','Ganso'),
+  ('ANIMAIS','Cisne'),
+  ('ANIMAIS','Flamingo'),
+  ('ANIMAIS','Pavão'),
+  ('ANIMAIS','Beija-flor'),
+  ('ANIMAIS','Pica-pau'),
+  ('ANIMAIS','Canário'),
+  ('ANIMAIS','Sabiá'),
+  ('ANIMAIS','Jacaré'),
+  ('ANIMAIS','Crocodilo'),
+  ('ANIMAIS','Iguana'),
+  ('ANIMAIS','Camaleão'),
+  ('ANIMAIS','Lagarto'),
+  ('ANIMAIS','Cobra'),
+  ('ANIMAIS','Jiboia'),
+  ('ANIMAIS','Sucuri'),
+  ('ANIMAIS','Cascavel'),
+  ('ANIMAIS','Tartaruga'),
+  ('ANIMAIS','Jabuti'),
+  ('ANIMAIS','Sapo'),
+  ('ANIMAIS','Rã'),
+  ('ANIMAIS','Salamandra'),
+  ('ANIMAIS','Borboleta'),
+  ('ANIMAIS','Abelha'),
+  ('ANIMAIS','Formiga'),
+  ('ANIMAIS','Mosquito'),
+  ('ANIMAIS','Besouro'),
+  ('ANIMAIS','Joaninha'),
+  ('ANIMAIS','Libélula'),
+  ('ANIMAIS','Gafanhoto'),
+  ('ANIMAIS','Grilo'),
+  ('ANIMAIS','Aranha'),
+  ('ANIMAIS','Escorpião'),
+  ('ANIMAIS','Minhoca'),
+  ('ANIMAIS','Caracol'),
+  ('ANIMAIS','Lesma'),
+  ('ANIMAIS','Estrela-do-mar'),
+  ('ANIMAIS','Cavalo-marinho')
+on conflict(theme,name) do nothing;
+
+insert into public.characters(theme,name) values
+  ('PAÍSES','Brasil'),
+  ('PAÍSES','Argentina'),
+  ('PAÍSES','Uruguai'),
+  ('PAÍSES','Paraguai'),
+  ('PAÍSES','Chile'),
+  ('PAÍSES','Peru'),
+  ('PAÍSES','Bolívia'),
+  ('PAÍSES','Colômbia'),
+  ('PAÍSES','Venezuela'),
+  ('PAÍSES','Equador'),
+  ('PAÍSES','México'),
+  ('PAÍSES','Canadá'),
+  ('PAÍSES','Estados Unidos'),
+  ('PAÍSES','Portugal'),
+  ('PAÍSES','Espanha'),
+  ('PAÍSES','França'),
+  ('PAÍSES','Alemanha'),
+  ('PAÍSES','Itália'),
+  ('PAÍSES','Reino Unido'),
+  ('PAÍSES','Irlanda'),
+  ('PAÍSES','Países Baixos'),
+  ('PAÍSES','Bélgica'),
+  ('PAÍSES','Suíça'),
+  ('PAÍSES','Áustria'),
+  ('PAÍSES','Polônia'),
+  ('PAÍSES','República Tcheca'),
+  ('PAÍSES','Eslováquia'),
+  ('PAÍSES','Hungria'),
+  ('PAÍSES','Romênia'),
+  ('PAÍSES','Bulgária'),
+  ('PAÍSES','Grécia'),
+  ('PAÍSES','Croácia'),
+  ('PAÍSES','Sérvia'),
+  ('PAÍSES','Eslovênia'),
+  ('PAÍSES','Bósnia e Herzegovina'),
+  ('PAÍSES','Albânia'),
+  ('PAÍSES','Macedônia do Norte'),
+  ('PAÍSES','Noruega'),
+  ('PAÍSES','Suécia'),
+  ('PAÍSES','Finlândia'),
+  ('PAÍSES','Dinamarca'),
+  ('PAÍSES','Islândia'),
+  ('PAÍSES','Estônia'),
+  ('PAÍSES','Letônia'),
+  ('PAÍSES','Lituânia'),
+  ('PAÍSES','Ucrânia'),
+  ('PAÍSES','Moldávia'),
+  ('PAÍSES','Geórgia'),
+  ('PAÍSES','Armênia'),
+  ('PAÍSES','Azerbaijão'),
+  ('PAÍSES','Turquia'),
+  ('PAÍSES','Rússia'),
+  ('PAÍSES','China'),
+  ('PAÍSES','Japão'),
+  ('PAÍSES','Coreia do Sul'),
+  ('PAÍSES','Coreia do Norte'),
+  ('PAÍSES','Índia'),
+  ('PAÍSES','Paquistão'),
+  ('PAÍSES','Bangladesh'),
+  ('PAÍSES','Nepal'),
+  ('PAÍSES','Butão'),
+  ('PAÍSES','Sri Lanka'),
+  ('PAÍSES','Maldivas'),
+  ('PAÍSES','Tailândia'),
+  ('PAÍSES','Vietnã'),
+  ('PAÍSES','Laos'),
+  ('PAÍSES','Camboja'),
+  ('PAÍSES','Malásia'),
+  ('PAÍSES','Singapura'),
+  ('PAÍSES','Indonésia'),
+  ('PAÍSES','Filipinas'),
+  ('PAÍSES','Mongólia'),
+  ('PAÍSES','Cazaquistão'),
+  ('PAÍSES','Uzbequistão'),
+  ('PAÍSES','Israel'),
+  ('PAÍSES','Jordânia'),
+  ('PAÍSES','Líbano'),
+  ('PAÍSES','Arábia Saudita'),
+  ('PAÍSES','Emirados Árabes Unidos'),
+  ('PAÍSES','Catar'),
+  ('PAÍSES','Kuwait'),
+  ('PAÍSES','Egito'),
+  ('PAÍSES','Marrocos'),
+  ('PAÍSES','Argélia'),
+  ('PAÍSES','Tunísia'),
+  ('PAÍSES','África do Sul'),
+  ('PAÍSES','Nigéria'),
+  ('PAÍSES','Gana'),
+  ('PAÍSES','Quênia'),
+  ('PAÍSES','Etiópia'),
+  ('PAÍSES','Angola'),
+  ('PAÍSES','Moçambique'),
+  ('PAÍSES','Madagascar'),
+  ('PAÍSES','Austrália'),
+  ('PAÍSES','Nova Zelândia'),
+  ('PAÍSES','Fiji'),
+  ('PAÍSES','Cuba'),
+  ('PAÍSES','Jamaica'),
+  ('PAÍSES','Haiti'),
+  ('PAÍSES','Panamá'),
+  ('PAÍSES','Costa Rica')
+on conflict(theme,name) do nothing;
+
+insert into public.characters(theme,name) values
+  ('PROFISSÕES','Médico'),
+  ('PROFISSÕES','Enfermeiro'),
+  ('PROFISSÕES','Dentista'),
+  ('PROFISSÕES','Veterinário'),
+  ('PROFISSÕES','Psicólogo'),
+  ('PROFISSÕES','Fisioterapeuta'),
+  ('PROFISSÕES','Nutricionista'),
+  ('PROFISSÕES','Farmacêutico'),
+  ('PROFISSÕES','Professor'),
+  ('PROFISSÕES','Pedagogo'),
+  ('PROFISSÕES','Advogado'),
+  ('PROFISSÕES','Juiz'),
+  ('PROFISSÕES','Promotor'),
+  ('PROFISSÕES','Policial'),
+  ('PROFISSÕES','Bombeiro'),
+  ('PROFISSÕES','Militar'),
+  ('PROFISSÕES','Engenheiro civil'),
+  ('PROFISSÕES','Engenheiro mecânico'),
+  ('PROFISSÕES','Engenheiro elétrico'),
+  ('PROFISSÕES','Arquiteto'),
+  ('PROFISSÕES','Designer'),
+  ('PROFISSÕES','Programador'),
+  ('PROFISSÕES','Analista de sistemas'),
+  ('PROFISSÕES','Cientista de dados'),
+  ('PROFISSÕES','Contador'),
+  ('PROFISSÕES','Administrador'),
+  ('PROFISSÕES','Economista'),
+  ('PROFISSÕES','Bancário'),
+  ('PROFISSÕES','Corretor de imóveis'),
+  ('PROFISSÕES','Vendedor'),
+  ('PROFISSÕES','Caixa'),
+  ('PROFISSÕES','Atendente'),
+  ('PROFISSÕES','Garçom'),
+  ('PROFISSÕES','Cozinheiro'),
+  ('PROFISSÕES','Chef de cozinha'),
+  ('PROFISSÕES','Padeiro'),
+  ('PROFISSÕES','Confeiteiro'),
+  ('PROFISSÕES','Açougueiro'),
+  ('PROFISSÕES','Motorista'),
+  ('PROFISSÕES','Caminhoneiro'),
+  ('PROFISSÕES','Motoboy'),
+  ('PROFISSÕES','Piloto de avião'),
+  ('PROFISSÕES','Comissário de bordo'),
+  ('PROFISSÕES','Mecânico'),
+  ('PROFISSÕES','Eletricista'),
+  ('PROFISSÕES','Encanador'),
+  ('PROFISSÕES','Pedreiro'),
+  ('PROFISSÕES','Pintor'),
+  ('PROFISSÕES','Marceneiro'),
+  ('PROFISSÕES','Serralheiro'),
+  ('PROFISSÕES','Soldador'),
+  ('PROFISSÕES','Jardineiro'),
+  ('PROFISSÕES','Agricultor'),
+  ('PROFISSÕES','Pecuarista'),
+  ('PROFISSÕES','Biólogo'),
+  ('PROFISSÕES','Químico'),
+  ('PROFISSÕES','Físico'),
+  ('PROFISSÕES','Astrônomo'),
+  ('PROFISSÕES','Geólogo'),
+  ('PROFISSÕES','Arqueólogo'),
+  ('PROFISSÕES','Jornalista'),
+  ('PROFISSÕES','Fotógrafo'),
+  ('PROFISSÕES','Cinegrafista'),
+  ('PROFISSÕES','Editor de vídeo'),
+  ('PROFISSÕES','Ator'),
+  ('PROFISSÕES','Atriz'),
+  ('PROFISSÕES','Cantor'),
+  ('PROFISSÕES','Músico'),
+  ('PROFISSÕES','Dançarino'),
+  ('PROFISSÕES','DJ'),
+  ('PROFISSÕES','Escritor'),
+  ('PROFISSÕES','Poeta'),
+  ('PROFISSÕES','Tradutor'),
+  ('PROFISSÕES','Intérprete'),
+  ('PROFISSÕES','Publicitário'),
+  ('PROFISSÕES','Influenciador'),
+  ('PROFISSÕES','Youtuber'),
+  ('PROFISSÕES','Streamer'),
+  ('PROFISSÕES','Jogador de futebol'),
+  ('PROFISSÕES','Jogador de basquete'),
+  ('PROFISSÕES','Árbitro'),
+  ('PROFISSÕES','Personal trainer'),
+  ('PROFISSÕES','Cabeleireiro'),
+  ('PROFISSÕES','Barbeiro'),
+  ('PROFISSÕES','Maquiador'),
+  ('PROFISSÕES','Manicure'),
+  ('PROFISSÕES','Costureiro'),
+  ('PROFISSÕES','Estilista'),
+  ('PROFISSÕES','Joalheiro'),
+  ('PROFISSÕES','Relojoeiro'),
+  ('PROFISSÕES','Carteiro'),
+  ('PROFISSÕES','Bibliotecário'),
+  ('PROFISSÕES','Recepcionista'),
+  ('PROFISSÕES','Secretário'),
+  ('PROFISSÕES','Segurança'),
+  ('PROFISSÕES','Vigilante'),
+  ('PROFISSÕES','Faxineiro'),
+  ('PROFISSÕES','Lixeiro'),
+  ('PROFISSÕES','Guia turístico'),
+  ('PROFISSÕES','Cientista')
+on conflict(theme,name) do nothing;
+
+insert into public.characters(theme,name) values
+  ('OBJETOS','Celular'),
+  ('OBJETOS','Notebook'),
+  ('OBJETOS','Computador'),
+  ('OBJETOS','Televisão'),
+  ('OBJETOS','Controle remoto'),
+  ('OBJETOS','Fone de ouvido'),
+  ('OBJETOS','Caixa de som'),
+  ('OBJETOS','Relógio'),
+  ('OBJETOS','Óculos'),
+  ('OBJETOS','Boné'),
+  ('OBJETOS','Chapéu'),
+  ('OBJETOS','Camiseta'),
+  ('OBJETOS','Calça'),
+  ('OBJETOS','Tênis'),
+  ('OBJETOS','Sapato'),
+  ('OBJETOS','Chinelo'),
+  ('OBJETOS','Meia'),
+  ('OBJETOS','Mochila'),
+  ('OBJETOS','Mala'),
+  ('OBJETOS','Carteira'),
+  ('OBJETOS','Chave'),
+  ('OBJETOS','Cadeado'),
+  ('OBJETOS','Tesoura'),
+  ('OBJETOS','Faca'),
+  ('OBJETOS','Garfo'),
+  ('OBJETOS','Colher'),
+  ('OBJETOS','Prato'),
+  ('OBJETOS','Copo'),
+  ('OBJETOS','Caneca'),
+  ('OBJETOS','Garrafa'),
+  ('OBJETOS','Panela'),
+  ('OBJETOS','Frigideira'),
+  ('OBJETOS','Liquidificador'),
+  ('OBJETOS','Batedeira'),
+  ('OBJETOS','Geladeira'),
+  ('OBJETOS','Fogão'),
+  ('OBJETOS','Micro-ondas'),
+  ('OBJETOS','Torradeira'),
+  ('OBJETOS','Cafeteira'),
+  ('OBJETOS','Ventilador'),
+  ('OBJETOS','Ar-condicionado'),
+  ('OBJETOS','Sofá'),
+  ('OBJETOS','Cadeira'),
+  ('OBJETOS','Mesa'),
+  ('OBJETOS','Cama'),
+  ('OBJETOS','Travesseiro'),
+  ('OBJETOS','Cobertor'),
+  ('OBJETOS','Toalha'),
+  ('OBJETOS','Espelho'),
+  ('OBJETOS','Escova de dentes'),
+  ('OBJETOS','Pasta de dente'),
+  ('OBJETOS','Sabonete'),
+  ('OBJETOS','Shampoo'),
+  ('OBJETOS','Pente'),
+  ('OBJETOS','Escova de cabelo'),
+  ('OBJETOS','Livro'),
+  ('OBJETOS','Caderno'),
+  ('OBJETOS','Caneta'),
+  ('OBJETOS','Lápis'),
+  ('OBJETOS','Borracha'),
+  ('OBJETOS','Régua'),
+  ('OBJETOS','Apontador'),
+  ('OBJETOS','Calculadora'),
+  ('OBJETOS','Grampeador'),
+  ('OBJETOS','Clipe'),
+  ('OBJETOS','Papel'),
+  ('OBJETOS','Envelope'),
+  ('OBJETOS','Caixa'),
+  ('OBJETOS','Martelo'),
+  ('OBJETOS','Chave de fenda'),
+  ('OBJETOS','Alicate'),
+  ('OBJETOS','Furadeira'),
+  ('OBJETOS','Serrote'),
+  ('OBJETOS','Escada'),
+  ('OBJETOS','Vassoura'),
+  ('OBJETOS','Rodo'),
+  ('OBJETOS','Balde'),
+  ('OBJETOS','Mangueira'),
+  ('OBJETOS','Guarda-chuva'),
+  ('OBJETOS','Bicicleta'),
+  ('OBJETOS','Patinete'),
+  ('OBJETOS','Skate'),
+  ('OBJETOS','Bola'),
+  ('OBJETOS','Raquete'),
+  ('OBJETOS','Violão'),
+  ('OBJETOS','Guitarra'),
+  ('OBJETOS','Piano'),
+  ('OBJETOS','Microfone'),
+  ('OBJETOS','Câmera'),
+  ('OBJETOS','Tripé'),
+  ('OBJETOS','Lanterna'),
+  ('OBJETOS','Vela'),
+  ('OBJETOS','Isqueiro'),
+  ('OBJETOS','Brinquedo'),
+  ('OBJETOS','Boneca'),
+  ('OBJETOS','Quebra-cabeça'),
+  ('OBJETOS','Dado'),
+  ('OBJETOS','Baralho'),
+  ('OBJETOS','Capacete'),
+  ('OBJETOS','Extintor')
+on conflict(theme,name) do nothing;
+
+insert into public.characters(theme,name) values
+  ('COMIDAS','Pizza'),
+  ('COMIDAS','Hambúrguer'),
+  ('COMIDAS','Cachorro-quente'),
+  ('COMIDAS','Lasanha'),
+  ('COMIDAS','Macarrão'),
+  ('COMIDAS','Arroz'),
+  ('COMIDAS','Feijão'),
+  ('COMIDAS','Bife'),
+  ('COMIDAS','Frango assado'),
+  ('COMIDAS','Peixe'),
+  ('COMIDAS','Sushi'),
+  ('COMIDAS','Temaki'),
+  ('COMIDAS','Pastel'),
+  ('COMIDAS','Coxinha'),
+  ('COMIDAS','Kibe'),
+  ('COMIDAS','Esfiha'),
+  ('COMIDAS','Pão de queijo'),
+  ('COMIDAS','Pão francês'),
+  ('COMIDAS','Tapioca'),
+  ('COMIDAS','Cuscuz'),
+  ('COMIDAS','Feijoada'),
+  ('COMIDAS','Churrasco'),
+  ('COMIDAS','Strogonoff'),
+  ('COMIDAS','Risoto'),
+  ('COMIDAS','Nhoque'),
+  ('COMIDAS','Panqueca'),
+  ('COMIDAS','Omelete'),
+  ('COMIDAS','Salada'),
+  ('COMIDAS','Sopa'),
+  ('COMIDAS','Caldo'),
+  ('COMIDAS','Batata frita'),
+  ('COMIDAS','Purê de batata'),
+  ('COMIDAS','Mandioca frita'),
+  ('COMIDAS','Polenta'),
+  ('COMIDAS','Milho cozido'),
+  ('COMIDAS','Pipoca'),
+  ('COMIDAS','Brigadeiro'),
+  ('COMIDAS','Beijinho'),
+  ('COMIDAS','Pudim'),
+  ('COMIDAS','Bolo de chocolate'),
+  ('COMIDAS','Bolo de cenoura'),
+  ('COMIDAS','Sorvete'),
+  ('COMIDAS','Açaí'),
+  ('COMIDAS','Chocolate'),
+  ('COMIDAS','Paçoca'),
+  ('COMIDAS','Pé de moleque'),
+  ('COMIDAS','Doce de leite'),
+  ('COMIDAS','Goiabada'),
+  ('COMIDAS','Romeu e Julieta'),
+  ('COMIDAS','Mousse'),
+  ('COMIDAS','Gelatina'),
+  ('COMIDAS','Churros'),
+  ('COMIDAS','Donut'),
+  ('COMIDAS','Cookie'),
+  ('COMIDAS','Brownie'),
+  ('COMIDAS','Croissant'),
+  ('COMIDAS','Waffle'),
+  ('COMIDAS','Cereal'),
+  ('COMIDAS','Iogurte'),
+  ('COMIDAS','Queijo'),
+  ('COMIDAS','Presunto'),
+  ('COMIDAS','Salame'),
+  ('COMIDAS','Ovo'),
+  ('COMIDAS','Bacon'),
+  ('COMIDAS','Linguiça'),
+  ('COMIDAS','Salsicha'),
+  ('COMIDAS','Alface'),
+  ('COMIDAS','Tomate'),
+  ('COMIDAS','Cenoura'),
+  ('COMIDAS','Beterraba'),
+  ('COMIDAS','Abóbora'),
+  ('COMIDAS','Abobrinha'),
+  ('COMIDAS','Berinjela'),
+  ('COMIDAS','Brócolis'),
+  ('COMIDAS','Couve-flor'),
+  ('COMIDAS','Espinafre'),
+  ('COMIDAS','Banana'),
+  ('COMIDAS','Maçã'),
+  ('COMIDAS','Laranja'),
+  ('COMIDAS','Uva'),
+  ('COMIDAS','Morango'),
+  ('COMIDAS','Manga'),
+  ('COMIDAS','Abacaxi'),
+  ('COMIDAS','Melancia'),
+  ('COMIDAS','Melão'),
+  ('COMIDAS','Mamão'),
+  ('COMIDAS','Pera'),
+  ('COMIDAS','Pêssego'),
+  ('COMIDAS','Kiwi'),
+  ('COMIDAS','Limão'),
+  ('COMIDAS','Coco'),
+  ('COMIDAS','Maracujá'),
+  ('COMIDAS','Goiaba'),
+  ('COMIDAS','Ameixa'),
+  ('COMIDAS','Cereja'),
+  ('COMIDAS','Jabuticaba'),
+  ('COMIDAS','Acerola'),
+  ('COMIDAS','Castanha'),
+  ('COMIDAS','Amendoim'),
+  ('COMIDAS','Granola')
+on conflict(theme,name) do nothing;

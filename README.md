@@ -35,9 +35,10 @@ Sem `.env` configurado, a aplicação entra automaticamente em modo demonstraç�
 ## 2. Criar o projeto no Supabase
 
 1. Crie um projeto em https://supabase.com.
-2. Em **SQL Editor**, execute `supabase/migrations/001_schema.sql`.
-3. Execute `supabase/migrations/002_security_and_fixes.sql` (obrigatório: corrige criação de sala, permissões e regras do jogo).
-4. Depois execute `supabase/seed.sql`.
+2. Em **SQL Editor**, cole e execute `supabase/setup_completo.sql` (já junta os passos 2–4 abaixo) **ou** execute os arquivos separadamente:
+   - `supabase/migrations/001_schema.sql`
+   - `supabase/migrations/002_security_and_fixes.sql` (obrigatório: corrige criação de sala, permissões e regras do jogo).
+   - `supabase/seed.sql`
 5. Em **Authentication > Providers > Email**, mantenha Email habilitado.
 6. Em **Authentication > URL Configuration**, coloque a URL da Vercel em *Site URL* e em *Redirect URLs* (para o link de confirmação de e-mail voltar ao jogo).
 7. Copie a URL do projeto e a chave pública/publishable para `.env`:
