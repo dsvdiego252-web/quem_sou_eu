@@ -5,3 +5,9 @@
 .btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
 .answers{margin-top:6px}
 @media(max-width:700px){.game{grid-template-columns:1fr}}
+.turn-banner{padding:12px 14px;border-radius:14px;background:#ffffff10;margin:6px 0 12px;font-weight:700}
+.turn-banner.mine{background:linear-gradient(135deg,#8b5cf655,#ec489955);outline:2px solid #f9a8d4}
+.msg.current{border:1px solid #f9a8d466;border-radius:14px;padding:12px;margin-bottom:12px}
+.player.turn{box-shadow:0 0 0 3px #fde68a,0 20px 50px #0004}
+.turn-tag{position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:#fde68a;color:#1f1235;font-weight:900;font-size:.8rem;padding:4px 10px;border-radius:999px}
+.pill.urgent{background:#ef4444;color:#fff}
