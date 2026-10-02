@@ -18,3 +18,5 @@
 .avatar.mini{width:44px;height:44px;font-size:24px;margin:0;box-shadow:none}
 .online-box{max-width:850px;margin:0 auto 24px}
 .online-row{gap:10px}
+.settings{grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}
+.settings label{display:grid;gap:6px;color:var(--muted)}

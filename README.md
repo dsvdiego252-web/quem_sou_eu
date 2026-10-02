@@ -41,6 +41,7 @@ Sem `.env` configurado, a aplicação entra automaticamente em modo demonstraç�
    - `supabase/migrations/003_turns.sql` (perguntas em turnos)
    - `supabase/migrations/004_guess_text_themes_ranking.sql` (palpite digitado, troca de tema, ranking)
    - `supabase/migrations/005_guess_on_turn.sql` (palpite só na vez; errar passa a vez)
+   - `supabase/migrations/006_room_settings.sql` (host configura a sala no lobby)
    - `supabase/seed.sql`
 3. Em **Authentication > Providers > Email**, mantenha Email habilitado.
 4. Em **Authentication > URL Configuration**, coloque a URL da Vercel em *Site URL* e em *Redirect URLs* (para o link de confirmação de e-mail voltar ao jogo).
@@ -131,6 +132,7 @@ Depois de publicado em HTTPS, abra no Chrome/Edge/Safari compatível e escolha *
 /supabase/migrations/003_turns.sql
 /supabase/migrations/004_guess_text_themes_ranking.sql
 /supabase/migrations/005_guess_on_turn.sql
+/supabase/migrations/006_room_settings.sql
 /supabase/seed.sql
 /vercel.json
 /netlify.toml
