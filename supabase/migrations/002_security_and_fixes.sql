@@ -37,17 +37,28 @@ do $$ begin
 exception when duplicate_object then null; when check_violation then null; end $$;
 
 -- Cadastro não falha mais quando o nome de usuário já existe.
-create or replace function public.handle_new_user() returns trigger language plpgsql security definer set search_path='' as $$
+create or replace function public.handle_new_user_row(p_id uuid,p_email text,p_meta jsonb) returns void language plpgsql security definer set search_path='' as $$
 declare base text; candidate text;
 begin
- base:=left(coalesce(nullif(trim(new.raw_user_meta_data->>'username'),''),split_part(new.email,'@',1)),18);
+ base:=left(coalesce(nullif(trim(p_meta->>'username'),''),split_part(p_email,'@',1)),18);
  if char_length(base)<3 then base:=base||'jogador'; end if;
  candidate:=base;
- if exists(select 1 from public.profiles where username=candidate) then candidate:=base||'_'||substr(replace(new.id::text,'-',''),1,5); end if;
- insert into public.profiles(id,username) values(new.id,candidate) on conflict(id) do nothing;
- return new;
+ if exists(select 1 from public.profiles where username=candidate) then candidate:=base||'_'||substr(replace(p_id::text,'-',''),1,5); end if;
+ insert into public.profiles(id,username) values(p_id,candidate) on conflict(id) do nothing;
 end$$;
+create or replace function public.handle_new_user() returns trigger language plpgsql security definer set search_path='' as $$
+begin perform public.handle_new_user_row(new.id,new.email,new.raw_user_meta_data); return new; end$$;
 revoke execute on function public.handle_new_user() from public, anon, authenticated;
+revoke execute on function public.handle_new_user_row(uuid,text,jsonb) from public, anon, authenticated;
+
+-- Contas criadas antes desta migration (ou por outro app no mesmo projeto Supabase)
+-- não passaram pelo trigger; o cliente chama isto ao logar para criar o perfil.
+create or replace function public.ensure_profile() returns void language plpgsql security definer set search_path='' as $$
+declare u auth.users;begin
+ if auth.uid() is null or exists(select 1 from public.profiles where id=auth.uid()) then return;end if;
+ select * into u from auth.users where id=auth.uid();
+ perform public.handle_new_user_row(u.id,u.email,u.raw_user_meta_data);
+end$$;
 
 -- ---------------------------------------------------------------------------
 -- 3. Regras de jogo validadas no servidor
@@ -170,6 +181,8 @@ revoke execute on function public.create_room(text,int,text,int),public.join_roo
   public.submit_guess(uuid,int,bigint),public.next_round(uuid),public.leave_room(uuid) from public, anon;
 grant execute on function public.create_room(text,int,text,int),public.join_room(text),public.start_match(uuid),
   public.submit_guess(uuid,int,bigint),public.next_round(uuid),public.leave_room(uuid) to authenticated;
+revoke execute on function public.ensure_profile() from public, anon;
+grant execute on function public.ensure_profile() to authenticated;
 
 -- ---------------------------------------------------------------------------
 -- 4. Policies mais restritas
