@@ -71,3 +71,4 @@ textarea.input{resize:vertical;font-family:inherit}
 .pass-wrap .input{padding-right:52px}
 .eye{position:absolute;right:6px;top:50%;transform:translateY(-50%);background:transparent;font-size:22px;padding:6px 8px;border-radius:10px}
 .eye:hover{background:#ffffff14}
+.link-btn{background:transparent;color:#f9a8d4;text-decoration:underline;margin-top:14px;padding:4px 0;font-weight:600}
