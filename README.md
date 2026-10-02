@@ -45,6 +45,9 @@ Sem `.env` configurado, a aplicação entra automaticamente em modo demonstraç�
    - `supabase/migrations/007_skip_turn_once.sql` (pular a vez só uma vez quando o tempo acaba)
    - `supabase/migrations/008_end_when_alone.sql` (encerra a partida quando sobra 1 jogador)
    - `supabase/migrations/009_offline_detection.sql` (detecta e retira jogador offline)
+   - `supabase/migrations/010_hints_fuzzy_rematch_quick_achievements.sql` (dica, palpite tolerante, revanche, partida rápida, conquistas, ranking semanal, admin)
+   - `supabase/migrations/011_more_characters.sql` (8 temas novos)
+   - `supabase/migrations/012_list_themes.sql` (temas vindos do banco)
    - `supabase/seed.sql`
 3. Em **Authentication > Providers > Email**, mantenha Email habilitado.
 4. Em **Authentication > URL Configuration**, coloque a URL da Vercel em *Site URL* e em *Redirect URLs* (para o link de confirmação de e-mail voltar ao jogo).
@@ -124,6 +127,8 @@ Depois de publicado em HTTPS, abra no Chrome/Edge/Safari compatível e escolha *
 /src/js/supabase.js
 /src/js/realtime.js
 /src/js/presence.js
+/src/js/sfx.js
+/src/js/images.js
 /src/js/avatar.js
 /src/js/bots.js
 /src/data/themes.js
@@ -139,10 +144,17 @@ Depois de publicado em HTTPS, abra no Chrome/Edge/Safari compatível e escolha *
 /supabase/migrations/007_skip_turn_once.sql
 /supabase/migrations/008_end_when_alone.sql
 /supabase/migrations/009_offline_detection.sql
+/supabase/migrations/010_hints_fuzzy_rematch_quick_achievements.sql
+/supabase/migrations/011_more_characters.sql
+/supabase/migrations/012_list_themes.sql
 /supabase/seed.sql
 /vercel.json
 /netlify.toml
 ```
+
+## Administração
+
+Perfis com `is_admin = true` veem o botão **🛠️ ADMIN** na tela inicial para cadastrar temas e personagens (com apelidos e link de imagem). Para dar acesso a alguém: `update profiles set is_admin = true where username = 'nome';` no SQL Editor.
 
 ## Próximas extensões já modeladas
 
