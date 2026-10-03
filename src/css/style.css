@@ -72,3 +72,7 @@ textarea.input{resize:vertical;font-family:inherit}
 .eye{position:absolute;right:6px;top:50%;transform:translateY(-50%);background:transparent;font-size:22px;padding:6px 8px;border-radius:10px}
 .eye:hover{background:#ffffff14}
 .link-btn{background:transparent;color:#f9a8d4;text-decoration:underline;margin-top:14px;padding:4px 0;font-weight:600}
+.name-row{gap:10px;align-items:center;margin-bottom:12px}
+.name-row h2{word-break:break-word}
+[hidden]{display:none!important}
+.name-row .input{min-width:200px}
