@@ -76,3 +76,18 @@ textarea.input{resize:vertical;font-family:inherit}
 .name-row h2{word-break:break-word}
 [hidden]{display:none!important}
 .name-row .input{min-width:200px}
+/* topo do jogo fixo: tempo sempre visível */
+.game-head{position:sticky;top:0;z-index:15;margin:-24px -24px 0;padding:12px 24px 6px;background:#12091ff2;backdrop-filter:blur(10px);border-bottom:1px solid #ffffff12}
+@media(max-width:700px){.game-head{margin:-14px -14px 0;padding:10px 14px 6px}}
+/* cards compactos com 3 ou 4 jogadores */
+.players.compact .player{padding:12px}
+.players.compact .avatar{width:64px;height:64px;font-size:34px}
+.players.compact .sign{padding:8px 6px;min-height:36px;font-size:.9rem}
+.players.compact .char-img{width:48px;height:48px}
+.players.compact h3{margin:6px 0;font-size:1rem}
+@media(max-width:700px){.players.compact{grid-template-columns:1fr 1fr;gap:10px}.players.compact .avatar{width:52px;height:52px;font-size:28px}}
+/* histórico de perguntas com rolagem */
+.history{max-height:55vh;overflow:auto;padding-right:4px}
+.free-progress{margin:6px 0 10px}
+.no-bal{display:block;font-size:.7rem;opacity:.85;font-weight:600}
+@media(max-width:700px){.actions{grid-template-columns:repeat(auto-fit,minmax(70px,1fr))}.actions .btn{font-size:.78rem;padding:10px 6px}}
