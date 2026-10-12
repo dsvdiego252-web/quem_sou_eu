@@ -91,3 +91,9 @@ textarea.input{resize:vertical;font-family:inherit}
 .free-progress{margin:6px 0 10px}
 .no-bal{display:block;font-size:.7rem;opacity:.85;font-weight:600}
 @media(max-width:700px){.actions{grid-template-columns:repeat(auto-fit,minmax(70px,1fr))}.actions .btn{font-size:.78rem;padding:10px 6px}}
+.auth-tabs{gap:8px;margin-bottom:6px}
+.confirm-card{text-align:center}
+.big-icon{font-size:56px}
+.email-pill{display:inline-block;background:#ffffff14;border-radius:999px;padding:8px 16px;font-weight:800;margin:6px 0 14px;word-break:break-all}
+.steps{text-align:left;line-height:1.6;margin:0 0 18px;padding-left:22px}
+.steps li{margin-bottom:6px}
