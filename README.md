@@ -164,6 +164,10 @@ Depois de publicado em HTTPS, abra no Chrome/Edge/Safari compatível e escolha *
 /netlify.toml
 ```
 
+## E-mail de confirmação em português
+
+O texto padrão do Supabase vem em inglês. Em **Authentication → Emails → Confirm signup**, use o assunto `Confirme seu cadastro` e cole o conteúdo de `supabase/email-templates/confirm-signup.html`. Cadastros feitos pelo jogo recebem o texto do jogo; os de outros apps no mesmo projeto recebem um texto neutro.
+
 ## Notificações push
 
 Convites chegam como notificação mesmo com o jogo fechado. Na Vercel são necessárias as variáveis `VITE_VAPID_PUBLIC_KEY` e `VAPID_PRIVATE_KEY` (gere com `npx web-push generate-vapid-keys`; a privada deve ser do tipo *Sensitive*). O envio é feito por `api/invite-push.js`. No iPhone, as notificações só funcionam com o jogo adicionado à Tela de Início (iOS 16.4+).

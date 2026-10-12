@@ -1,0 +1,23 @@
+<!--
+  Modelo do e-mail "Confirm signup" do Supabase (Authentication → Emails → Confirm signup).
+  Assunto sugerido: Confirme seu cadastro
+  O projeto Supabase é compartilhado com outros apps: cadastros feitos pelo jogo enviam
+  app = "quem_sou_eu" nos metadados, e só eles recebem o texto do jogo.
+-->
+{{ if eq .Data.app "quem_sou_eu" }}
+<div style="font-family:Arial,Helvetica,sans-serif;max-width:480px;margin:0 auto;padding:24px;background:#21123a;color:#ffffff;border-radius:16px">
+  <h1 style="margin:0 0 8px;font-size:26px">🎭 Quem Sou Eu?</h1>
+  <p style="font-size:16px">Oi, <b>{{ .Data.username }}</b>! Falta só um passo para começar a jogar.</p>
+  <p style="font-size:16px">Toque no botão abaixo para confirmar seu e-mail:</p>
+  <p style="text-align:center;margin:28px 0">
+    <a href="{{ .ConfirmationURL }}" style="background:#8b5cf6;color:#ffffff;text-decoration:none;padding:14px 26px;border-radius:12px;font-weight:bold;font-size:16px;display:inline-block">Confirmar meu e-mail</a>
+  </p>
+  <p style="font-size:14px;color:#d8cce8">Depois de confirmar, o jogo abre com você já conectado.</p>
+  <p style="font-size:12px;color:#b7a7cc">Se você não criou uma conta, é só ignorar este e-mail.</p>
+</div>
+{{ else }}
+<h2>Confirme seu cadastro</h2>
+<p>Toque no link abaixo para confirmar seu e-mail:</p>
+<p><a href="{{ .ConfirmationURL }}">Confirmar meu e-mail</a></p>
+<p>Se você não criou uma conta, é só ignorar este e-mail.</p>
+{{ end }}
