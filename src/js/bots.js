@@ -1,4 +1,4 @@
-// Modo treino com bots: cada bot tem uma identidade secreta, responde às suas perguntas de
+// Jogar com bots: cada bot tem uma identidade secreta, responde às suas perguntas de
 // verdade (pelas características do personagem), faz perguntas sobre si mesmo e vai eliminando
 // candidatos até arriscar um palpite.
 import {BOT_CHARS,BOT_THEMES} from '../data/botChars.js'
@@ -92,7 +92,7 @@ const BOTS=[['Luna Bot','🤖'],['Max Bot','👾'],['Nina Bot','🦾'],['Teco Bo
 const MINQ={facil:9,normal:7,dificil:5}
 export const DIFFS={facil:'Fácil',normal:'Normal',dificil:'Difícil'}
 
-// Nova partida de treino: tema (ou TUDO MISTURADO), dificuldade e quantidade de bots.
+// Nova partida com bots: tema (ou TUDO MISTURADO), dificuldade e quantidade de bots.
 export function newBotGame(user,theme='TUDO MISTURADO',diff='normal',nBots=3){
  const pool=theme==='TUDO MISTURADO'?BOT_CHARS:BOT_CHARS.filter(c=>c.t===theme)
  const ids=shuffle(pool).slice(0,nBots+1)
@@ -100,14 +100,15 @@ export function newBotGame(user,theme='TUDO MISTURADO',diff='normal',nBots=3){
  players.forEach(p=>Object.assign(p,{solved:false,place:null,q:0,wrong:0,asked:new Set()}))
  // Cada bot vê as identidades dos outros, então elas saem da lista de candidatos dele.
  players.filter(p=>!p.self).forEach(b=>b.cands=pool.filter(c=>!players.some(o=>o!==b&&o.char===c)))
- return {theme,diff,pool,players,turn:0,log:[],pending:null,places:0,hints:0,over:false}}
+ return {theme,diff,pool,players,turn:0,log:[],pending:null,places:0,hints:0,penalty:0,over:false}}
 
 export const current=g=>g.players[g.turn]
 export function nextTurn(g){const n=g.players.length;for(let i=1;i<=n;i++){const j=(g.turn+i)%n;if(!g.players[j].solved){g.turn=j;return}}}
 export function checkOver(g){const me=g.players[0],left=g.players.filter(p=>!p.solved);if(me.solved||left.length<=1)g.over=true;return g.over}
 export const prize=(g,place)=>g.players.length>=4?[100,70,40][place-1]||0:g.players.length===3?[100,50][place-1]||0:place===1?100:0
 
-export function solve(g,p){p.solved=true;p.place=++g.places;p.points=prize(g,p.place)+(p.q<=3?30:p.q<=5?15:0)}
+// Mesma pontuação do jogo online: colocação + bônus por poucas perguntas − penalidade das dicas grátis.
+export function solve(g,p){p.solved=true;p.place=++g.places;p.points=Math.max(0,prize(g,p.place)+(p.q<=3?30:p.q<=5?15:0)-(p.self?g.penalty:0))}
 
 // Pergunta do jogador: os bots respondem com base na identidade dele.
 export function humanAsk(g,text){const me=g.players[0];me.q++;const answers=g.players.filter(p=>!p.self).map(p=>({name:p.name,emoji:p.emoji,ans:answerFor(me.char,text)}));g.log.push({who:me,text,answers});nextTurn(g)}
@@ -117,9 +118,11 @@ function lev(a,b){const d=Array.from({length:a.length+1},(_,i)=>[i]);for(let j=1
 export function guessMatches(c,guess){const g=norm(guess).trim();if(!g)return false;const names=[c.n,...c.a].map(x=>norm(x).trim());if(names.includes(g))return true;const n=names[0],last=n.split(' ').pop();if(n.includes(' ')&&g.length>=3&&g===last)return true;const tol=n.length>=10?2:n.length>=5?1:0;return tol>0&&lev(g,n)<=tol}
 export function humanGuess(g,text){const me=g.players[0];const ok=guessMatches(me.char,text);g.log.push({who:me,text:`💡 Eu sou ${text}!`,result:ok?'✅ ACERTOU!':'❌ Errou'});if(ok)solve(g,me);else me.wrong++;nextTurn(g);checkOver(g);return ok}
 
-// Dicas do treino: a cada 4 perguntas libera uma (até 3).
-export const hintReady=g=>g.hints<3&&g.players[0].q>=(g.hints+1)*4
-export function takeHint(g){const n=g.players[0].char.n,w=n.split(' ');g.hints++;const h=g.hints===1?`${g.theme==='TUDO MISTURADO'?`Seu tema é ${g.players[0].char.t}. `:''}Seu nome tem ${w.length} palavra${w.length>1?'s':''} e ${n.replace(/ /g,'').length} letras.`:g.hints===2?`Seu nome começa com "${n[0].toUpperCase()}" e termina com "${n.slice(-1).toLowerCase()}".`:`Seu nome: ${w.map(x=>[...x].map((ch,i)=>i===0||i%2===0?ch.toUpperCase():'_').join(' ')).join('   ')}`;g.log.push({who:g.players[0],text:`🔎 Dica ${g.hints}: ${h}`,hint:true});return h}
+// Dicas grátis iguais às do jogo online: liberam depois da 10ª, 15ª e 20ª pergunta e
+// descontam 20, 30 e 40 pontos do prêmio quando você acertar.
+export const HINT_NEED=[10,15,20],HINT_PEN=[20,30,40]
+export const hintReady=g=>g.hints<3&&g.players[0].q>=HINT_NEED[g.hints]
+export function takeHint(g){const n=g.players[0].char.n,w=n.split(' ');g.penalty+=HINT_PEN[g.hints];g.hints++;const h=g.hints===1?`${g.theme==='TUDO MISTURADO'?`Seu tema é ${g.players[0].char.t}. `:''}Seu nome tem ${w.length} palavra${w.length>1?'s':''} e ${n.replace(/ /g,'').length} letras.`:g.hints===2?`Seu nome começa com "${n[0].toUpperCase()}" e termina com "${n.slice(-1).toLowerCase()}".`:`Seu nome: ${w.map(x=>[...x].map((ch,i)=>i===0||i%2===0?ch.toUpperCase():'_').join(' ')).join('   ')}`;g.log.push({who:g.players[0],text:`🔎 Dica ${g.hints} (−${HINT_PEN[g.hints-1]} pts): ${h}`,hint:true});return h}
 
 // Vez do bot: decide entre perguntar (melhor divisão dos candidatos) e arriscar um palpite.
 export function botMove(g){const b=current(g),c=b.cands
