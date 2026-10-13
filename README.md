@@ -18,7 +18,9 @@ Projeto web multiplayer em HTML/CSS/JavaScript com Vite + Supabase (Auth, Postgr
 - Resultado da rodada, próxima rodada e pódio final.
 - Realtime via Supabase Postgres Changes.
 - PWA instalável.
-- Modo “Testar com Bots” sem configuração externa.
+- Modo “Treinar com Bots” sem configuração externa: os bots respondem às perguntas pelas características do personagem, fazem as próprias perguntas e tentam adivinhar (fácil, normal ou difícil).
+- Temas da galera: cada jogador cria temas com pessoas do grupo (família, escola...) e joga com os amigos.
+- Estatísticas por tema no perfil (rodadas, acertos, 1º lugar e média de perguntas).
 - Ranking global básico e perfil.
 - Estruturas de `friendships` e `theme_votes` já criadas para expansão da UI de amigos/votação.
 
@@ -30,7 +32,7 @@ cp .env.example .env
 npm run dev
 ```
 
-Sem `.env` configurado, a aplicação entra automaticamente em modo demonstração e o botão **TESTAR COM BOTS** funciona.
+Sem `.env` configurado, a aplicação entra automaticamente em modo demonstração e o botão **TREINAR COM BOTS** funciona.
 
 ## 2. Criar o projeto no Supabase
 
@@ -53,6 +55,7 @@ Sem `.env` configurado, a aplicação entra automaticamente em modo demonstraç�
    - `supabase/migrations/015_skip_own_turn.sql` (quem está na vez pode pular a própria vez)
    - `supabase/migrations/016_mark_away.sql` (fechar o app encerra a participação em ~20 s)
    - `supabase/migrations/017_free_hints.sql` (dicas grátis por perguntas; dica paga exige saldo)
+   - `supabase/migrations/018_custom_themes_stats.sql` (temas da galera e estatísticas por tema)
    - `supabase/seed.sql`
 3. Em **Authentication > Providers > Email**, mantenha Email habilitado.
 4. Em **Authentication > URL Configuration**, coloque a URL da Vercel em *Site URL* e em *Redirect URLs* (para o link de confirmação de e-mail voltar ao jogo).
@@ -157,6 +160,8 @@ Depois de publicado em HTTPS, abra no Chrome/Edge/Safari compatível e escolha *
 /supabase/migrations/015_skip_own_turn.sql
 /supabase/migrations/016_mark_away.sql
 /supabase/migrations/017_free_hints.sql
+/supabase/migrations/018_custom_themes_stats.sql
+/src/data/botChars.js
 /api/invite-push.js
 /src/js/push.js
 /supabase/seed.sql
