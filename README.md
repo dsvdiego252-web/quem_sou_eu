@@ -56,6 +56,7 @@ Sem `.env` configurado, a aplicação entra automaticamente em modo demonstraç�
    - `supabase/migrations/016_mark_away.sql` (fechar o app encerra a participação em ~20 s)
    - `supabase/migrations/017_free_hints.sql` (dicas grátis por perguntas; dica paga exige saldo)
    - `supabase/migrations/018_custom_themes_stats.sql` (temas da galera e estatísticas por tema)
+   - `supabase/migrations/019_answer_time.sql` (pelo menos 30 s para responder mesmo com pergunta no fim da vez)
    - `supabase/seed.sql`
 3. Em **Authentication > Providers > Email**, mantenha Email habilitado.
 4. Em **Authentication > URL Configuration**, coloque a URL da Vercel em *Site URL* e em *Redirect URLs* (para o link de confirmação de e-mail voltar ao jogo).
@@ -161,6 +162,7 @@ Depois de publicado em HTTPS, abra no Chrome/Edge/Safari compatível e escolha *
 /supabase/migrations/016_mark_away.sql
 /supabase/migrations/017_free_hints.sql
 /supabase/migrations/018_custom_themes_stats.sql
+/supabase/migrations/019_answer_time.sql
 /src/data/botChars.js
 /api/invite-push.js
 /src/js/push.js
