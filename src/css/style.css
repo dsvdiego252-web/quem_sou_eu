@@ -102,3 +102,5 @@ textarea.input{resize:vertical;font-family:inherit}
 .solved-tag{display:inline-block;margin-top:4px;padding:3px 10px;border-radius:999px;background:#10b98133;color:#86efac;font-weight:800;font-size:.85rem}
 .winner-banner{padding:14px 16px;border-radius:14px;background:linear-gradient(135deg,#f59e0b33,#fde68a22);outline:1px solid #fde68a66;font-size:1.05rem;margin:6px 0 14px}
 .flash-banner{width:max-content}
+.pill.warn{background:#f59e0b2e;color:#fde68a}.tstats{width:100%;border-collapse:collapse;font-size:.95rem}.tstats th,.tstats td{padding:8px 6px;border-bottom:1px solid #ffffff12;text-align:center}.tstats th:first-child,.tstats td:first-child{text-align:left}.tstats th{color:var(--muted);font-weight:700;font-size:.8rem}.tstats tr.best td{color:#fde68a;font-weight:800}.bar{height:6px;border-radius:9px;background:#ffffff14;overflow:hidden;margin-top:4px}.bar i{display:block;height:100%;background:linear-gradient(90deg,var(--p),var(--p2))}
+.pill.yes{background:#10b98133;color:#86efac}.pill.no{background:#ef444433;color:#fca5a5}.hint-line{color:#fde68a}

@@ -1,0 +1,83 @@
+// Personagens do modo treino com bots. Cada um tem características que os bots usam para
+// responder às perguntas e para pensar nas próprias perguntas.
+// g: m/f · real: pessoa de verdade · vivo · br: brasileiro · pais · tags: características
+const P=(n,t,g,o={})=>({n,t,g,real:true,vivo:true,br:false,pais:'',a:[],tags:[],...o})
+const F=(n,t,g,o={})=>({n,t,g,real:false,vivo:true,br:false,pais:'',a:[],tags:[],...o})
+export const BOT_CHARS=[
+ // FUTEBOL
+ P('Lionel Messi','FUTEBOL','m',{pais:'argentina',a:['messi'],tags:['jogador','futebol','atleta','esporte','barba','canhoto','campeao do mundo']}),
+ P('Cristiano Ronaldo','FUTEBOL','m',{pais:'portugal',a:['cristiano','cr7'],tags:['jogador','futebol','atleta','esporte','campeao europeu']}),
+ P('Neymar','FUTEBOL','m',{br:true,pais:'brasil',a:['neymar jr'],tags:['jogador','futebol','atleta','esporte','tatuagem','barba']}),
+ P('Pelé','FUTEBOL','m',{br:true,pais:'brasil',vivo:false,a:['pele','edson arantes'],tags:['jogador','futebol','atleta','esporte','campeao do mundo','rei']}),
+ P('Ronaldinho Gaúcho','FUTEBOL','m',{br:true,pais:'brasil',a:['ronaldinho'],tags:['jogador','futebol','atleta','esporte','cabelo comprido','campeao do mundo']}),
+ P('Marta','FUTEBOL','f',{br:true,pais:'brasil',a:['marta silva'],tags:['jogador','futebol','atleta','esporte']}),
+ P('Vinícius Júnior','FUTEBOL','m',{br:true,pais:'brasil',a:['vini jr','vinicius'],tags:['jogador','futebol','atleta','esporte']}),
+ P('Kylian Mbappé','FUTEBOL','m',{pais:'franca',a:['mbappe'],tags:['jogador','futebol','atleta','esporte','careca','campeao do mundo']}),
+ P('Diego Maradona','FUTEBOL','m',{pais:'argentina',vivo:false,a:['maradona'],tags:['jogador','futebol','atleta','esporte','canhoto','campeao do mundo','cabelo comprido']}),
+ P('Ronaldo Fenômeno','FUTEBOL','m',{br:true,pais:'brasil',a:['ronaldo','fenomeno','r9'],tags:['jogador','futebol','atleta','esporte','careca','campeao do mundo']}),
+ // CANTORES
+ P('Anitta','CANTORES','f',{br:true,pais:'brasil',tags:['cantor','musica','funk','pop','danca']}),
+ P('Michael Jackson','CANTORES','m',{pais:'eua',vivo:false,tags:['cantor','musica','pop','danca','luva']}),
+ P('Taylor Swift','CANTORES','f',{pais:'eua',tags:['cantor','musica','pop','loiro','compositor']}),
+ P('Ivete Sangalo','CANTORES','f',{br:true,pais:'brasil',a:['ivete'],tags:['cantor','musica','axe','loiro','apresentador']}),
+ P('Roberto Carlos','CANTORES','m',{br:true,pais:'brasil',a:['rei roberto'],tags:['cantor','musica','romantico','rei','compositor']}),
+ P('Elvis Presley','CANTORES','m',{pais:'eua',vivo:false,a:['elvis'],tags:['cantor','musica','rock','rei','ator']}),
+ P('Beyoncé','CANTORES','f',{pais:'eua',a:['beyonce'],tags:['cantor','musica','pop','danca','loiro']}),
+ P('Marília Mendonça','CANTORES','f',{br:true,pais:'brasil',vivo:false,a:['marilia'],tags:['cantor','musica','sertanejo','compositor']}),
+ P('Justin Bieber','CANTORES','m',{pais:'canada',a:['bieber'],tags:['cantor','musica','pop','tatuagem','loiro']}),
+ P('Gusttavo Lima','CANTORES','m',{br:true,pais:'brasil',a:['gustavo lima'],tags:['cantor','musica','sertanejo','barba']}),
+ // DESENHOS
+ F('Bob Esponja','DESENHOS','m',{a:['bob'],tags:['desenho','mar','amarelo','animal','engracado']}),
+ F('Mickey Mouse','DESENHOS','m',{a:['mickey'],tags:['desenho','animal','rato','disney','luva','orelhas grandes']}),
+ F('Pica-Pau','DESENHOS','m',{a:['pica pau','woody'],tags:['desenho','animal','passaro','vermelho','engracado']}),
+ F('Pernalonga','DESENHOS','m',{a:['bugs bunny'],tags:['desenho','animal','coelho','cinza','orelhas grandes','engracado']}),
+ F('Homer Simpson','DESENHOS','m',{a:['homer'],tags:['desenho','amarelo','careca','pai','engracado']}),
+ F('Mônica','DESENHOS','f',{br:true,pais:'brasil',a:['monica'],tags:['desenho','quadrinhos','vermelho','crianca','dentuço']}),
+ F('Cebolinha','DESENHOS','m',{br:true,pais:'brasil',tags:['desenho','quadrinhos','verde','crianca']}),
+ F('Scooby-Doo','DESENHOS','m',{a:['scooby'],tags:['desenho','animal','cachorro','marrom','medroso']}),
+ F('Peppa Pig','DESENHOS','f',{a:['peppa'],tags:['desenho','animal','porco','rosa','crianca']}),
+ F('Tom','DESENHOS','m',{a:['tom e jerry'],tags:['desenho','animal','gato','cinza']}),
+ // HERÓIS (FILMES)
+ F('Homem-Aranha','HERÓIS','m',{a:['homem aranha','spider man','peter parker'],tags:['heroi','poderes','mascara','vermelho','azul','marvel','filme','quadrinhos','teia']}),
+ F('Batman','HERÓIS','m',{a:['bruce wayne'],tags:['heroi','mascara','capa','preto','dc','filme','quadrinhos','rico','morcego']}),
+ F('Superman','HERÓIS','m',{a:['super homem','clark kent'],tags:['heroi','poderes','capa','azul','vermelho','dc','filme','quadrinhos','voa']}),
+ F('Mulher-Maravilha','HERÓIS','f',{a:['mulher maravilha','diana'],tags:['heroi','poderes','dc','filme','quadrinhos','vermelho','azul','princesa']}),
+ F('Homem de Ferro','HERÓIS','m',{a:['iron man','tony stark'],tags:['heroi','armadura','vermelho','marvel','filme','quadrinhos','rico','voa']}),
+ F('Hulk','HERÓIS','m',{tags:['heroi','poderes','verde','marvel','filme','quadrinhos','forte']}),
+ F('Capitão América','HERÓIS','m',{a:['capitao america'],tags:['heroi','escudo','azul','marvel','filme','quadrinhos']}),
+ F('Coringa','HERÓIS','m',{a:['joker'],tags:['vilao','dc','filme','quadrinhos','verde','roxo','palhaco']}),
+ F('Thanos','HERÓIS','m',{tags:['vilao','poderes','roxo','marvel','filme','quadrinhos','forte']}),
+ F('Pantera Negra','HERÓIS','m',{a:['black panther'],tags:['heroi','mascara','preto','marvel','filme','quadrinhos','rei']}),
+ // GAMES
+ F('Mario','GAMES','m',{a:['super mario'],tags:['game','nintendo','bigode','vermelho','bone','encanador']}),
+ F('Luigi','GAMES','m',{tags:['game','nintendo','bigode','verde','bone','encanador']}),
+ F('Sonic','GAMES','m',{tags:['game','animal','azul','rapido','porco espinho']}),
+ F('Pikachu','GAMES','m',{a:['pikachu'],tags:['game','anime','animal','amarelo','pokemon','eletricidade','poderes']}),
+ F('Kratos','GAMES','m',{tags:['game','careca','barba','forte','deus','playstation']}),
+ F('Lara Croft','GAMES','f',{a:['lara'],tags:['game','aventura','arma','filme']}),
+ F('Link','GAMES','m',{a:['zelda'],tags:['game','nintendo','verde','espada','orelhas grandes']}),
+ F('Steve','GAMES','m',{a:['minecraft'],tags:['game','quadrado','azul']}),
+ F('Pac-Man','GAMES','m',{a:['pacman','pac man'],tags:['game','amarelo','redondo']}),
+ F('Donkey Kong','GAMES','m',{tags:['game','nintendo','animal','macaco','marrom','forte']}),
+ // ANIME
+ F('Goku','ANIME','m',{a:['son goku','kakaroto'],tags:['anime','poderes','japones','laranja','forte','dragon ball','luta']}),
+ F('Naruto','ANIME','m',{a:['naruto uzumaki'],tags:['anime','poderes','japones','laranja','loiro','ninja']}),
+ F('Luffy','ANIME','m',{a:['monkey d luffy'],tags:['anime','poderes','japones','chapeu','pirata','vermelho']}),
+ F('Sailor Moon','ANIME','f',{a:['serena'],tags:['anime','poderes','japones','loiro','princesa']}),
+ F('Vegeta','ANIME','m',{tags:['anime','poderes','japones','azul','forte','dragon ball','luta','principe']}),
+ F('Sasuke','ANIME','m',{a:['sasuke uchiha'],tags:['anime','poderes','japones','preto','ninja']}),
+ F('Mikasa','ANIME','f',{a:['mikasa ackerman'],tags:['anime','japones','preto','espada','luta']}),
+ F('Tanjiro','ANIME','m',{a:['tanjiro kamado'],tags:['anime','japones','espada','verde','luta']}),
+ // FAMOSOS
+ P('Albert Einstein','FAMOSOS','m',{pais:'alemanha',vivo:false,a:['einstein'],tags:['cientista','bigode','cabelo branco','genio']}),
+ P('Silvio Santos','FAMOSOS','m',{br:true,pais:'brasil',vivo:false,a:['silvio'],tags:['apresentador','tv','rico','empresario']}),
+ P('Xuxa','FAMOSOS','f',{br:true,pais:'brasil',tags:['apresentador','tv','loiro','cantor','rainha']}),
+ P('Faustão','FAMOSOS','m',{br:true,pais:'brasil',a:['fausto silva'],tags:['apresentador','tv']}),
+ P('Ayrton Senna','FAMOSOS','m',{br:true,pais:'brasil',vivo:false,a:['senna'],tags:['atleta','esporte','piloto','formula 1','campeao do mundo']}),
+ P('Elon Musk','FAMOSOS','m',{pais:'eua',a:['musk'],tags:['empresario','rico','foguete','carro']}),
+ P('Rainha Elizabeth','FAMOSOS','f',{pais:'inglaterra',vivo:false,a:['elizabeth'],tags:['realeza','rainha','coroa','cabelo branco']}),
+ P('Whindersson Nunes','FAMOSOS','m',{br:true,pais:'brasil',a:['whindersson'],tags:['youtuber','humorista','internet','engracado']}),
+ P('Gisele Bündchen','FAMOSOS','f',{br:true,pais:'brasil',a:['gisele'],tags:['modelo','loiro','rico']}),
+ P('Usain Bolt','FAMOSOS','m',{pais:'jamaica',a:['bolt'],tags:['atleta','esporte','corredor','rapido','campeao olimpico']}),
+]
+export const BOT_THEMES=[...new Set(BOT_CHARS.map(c=>c.t))]
