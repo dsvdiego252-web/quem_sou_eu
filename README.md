@@ -18,7 +18,7 @@ Projeto web multiplayer em HTML/CSS/JavaScript com Vite + Supabase (Auth, Postgr
 - Resultado da rodada, próxima rodada e pódio final.
 - Realtime via Supabase Postgres Changes.
 - PWA instalável.
-- Modo “Treinar com Bots” sem configuração externa: os bots respondem às perguntas pelas características do personagem, fazem as próprias perguntas e tentam adivinhar (fácil, normal ou difícil).
+- Modo “Jogar com Bots” sem configuração externa: os bots respondem às perguntas pelas características do personagem, fazem as próprias perguntas e tentam adivinhar (fácil, normal ou difícil), com as mesmas dicas grátis (10ª, 15ª e 20ª pergunta) e a mesma pontuação do jogo online.
 - Temas da galera: cada jogador cria temas com pessoas do grupo (família, escola...) e joga com os amigos.
 - Estatísticas por tema no perfil (rodadas, acertos, 1º lugar e média de perguntas).
 - Ranking global básico e perfil.
@@ -32,7 +32,7 @@ cp .env.example .env
 npm run dev
 ```
 
-Sem `.env` configurado, a aplicação entra automaticamente em modo demonstração e o botão **TREINAR COM BOTS** funciona.
+Sem `.env` configurado, a aplicação entra automaticamente em modo demonstração e o botão **JOGAR COM BOTS** funciona.
 
 ## 2. Criar o projeto no Supabase
 
